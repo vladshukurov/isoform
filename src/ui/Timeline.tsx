@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Play } from 'lucide-react';
+import { AudioWaveform, Play } from 'lucide-react';
 import { ENTER } from '../anim';
 import type { Editor } from '../editor';
 import { hoverKind } from '../model';
@@ -32,7 +32,11 @@ export function Timeline({ editor, onPlay, playing }: { editor: Editor; onPlay: 
     <section className="timeline">
       <div className="section-head">
         <h3>Таймлайн</h3>
-        <button className="icon" aria-label="Проиграть" data-tip="Проиграть на превью" onClick={() => onPlay(total)}><Play size={13} /></button>
+        <div className="row">
+          <button className="icon" aria-label="Волна задержек" data-tip={selection.length ? 'Волна задержек по выделенным' : 'Волна задержек сзади вперёд'}
+            onClick={() => editor.stagger()}><AudioWaveform size={13} /></button>
+          <button className="icon" aria-label="Проиграть" data-tip="Проиграть на превью" onClick={() => onPlay(total)}><Play size={13} /></button>
+        </div>
       </div>
       <div className="timeline-rows" ref={track}>
         {playing !== null && now <= total && <div className="playhead" style={{ left: `calc(80px + (100% - 80px) * ${now / total})` }} />}

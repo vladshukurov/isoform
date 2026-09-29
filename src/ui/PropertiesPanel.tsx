@@ -1,5 +1,9 @@
 import { useRef, useState } from 'react';
-import { Download, RotateCcw } from 'lucide-react';
+import {
+  AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround,
+  AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround,
+  Download, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw,
+} from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import { downloadJson, downloadPng, downloadSvg } from '../download';
 import type { Editor } from '../editor';
@@ -54,6 +58,40 @@ export function PropertiesPanel({ editor, dark }: { editor: Editor; dark: boolea
               onClick={() => editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
             <button aria-pressed={scene.motion === 'layered'} data-tip="Схема раскрывается слоями и собирается при появлении"
               onClick={() => editor.change(s => ({ ...s, motion: 'layered' }))}>Слои</button>
+          </div>
+        </section>
+      )}
+
+      {selected.length > 1 && (
+        <section>
+          <h3>Выравнивание</h3>
+          <div className="align-grid">
+            {(['x', 'y', 'z'] as const).map(axis => (
+              <div key={axis} className="align-row">
+                <span className="num-label">{axis.toUpperCase()}</span>
+                {(axis === 'z'
+                  ? [['min', AlignVerticalJustifyEnd, 'вниз'], ['center', AlignVerticalJustifyCenter, 'по центру'], ['max', AlignVerticalJustifyStart, 'вверх']] as const
+                  : [['min', AlignHorizontalJustifyStart, 'к началу'], ['center', AlignHorizontalJustifyCenter, 'по центру'], ['max', AlignHorizontalJustifyEnd, 'к концу']] as const).map(([edge, Icon, tip]) => (
+                  <button key={edge} className="icon" aria-label={`${axis.toUpperCase()} ${tip}`} data-tip={`${axis === 'z' ? 'По высоте' : axis.toUpperCase()} ${tip}`}
+                    onClick={() => editor.alignTo(axis, edge)}><Icon size={14} /></button>
+                ))}
+                <button className="icon" aria-label={`Распределить по ${axis.toUpperCase()}`} data-tip={`Равные промежутки по ${axis === 'z' ? 'высоте' : axis.toUpperCase()}`}
+                  disabled={selected.length < 3} onClick={() => editor.distribute(axis)}>{axis === 'z' ? <AlignVerticalSpaceAround size={14} /> : <AlignHorizontalSpaceAround size={14} />}</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!hover && selected.length > 0 && (
+        <section>
+          <div className="section-head">
+            <h3>Трансформация</h3>
+            <div className="row">
+              <button className="icon" aria-label="Отразить по X" data-tip="Отразить по X" data-kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></button>
+              <button className="icon" aria-label="Отразить по Y" data-tip="Отразить по Y" data-kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></button>
+              <button className="icon" aria-label="Повернуть на 90°" data-tip="Повернуть на 90°" data-kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></button>
+            </div>
           </div>
         </section>
       )}

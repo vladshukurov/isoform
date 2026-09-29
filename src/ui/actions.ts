@@ -9,9 +9,14 @@ export function pieceMenu(editor: Editor, ids: string[]): MenuItem[] {
   const hidden = pieces.every(p => p.hidden), locked = pieces.every(p => p.locked);
   return [
     { label: 'Копировать', shortcut: '⌘C', onSelect: () => editor.copy(ids) },
+    { label: 'Копировать для агента', onSelect: () => editor.copyForAgent(ids) },
     { label: 'Вырезать', shortcut: '⌘X', onSelect: () => editor.cut(ids) },
     { label: 'Дублировать', shortcut: '⌘D', onSelect: () => editor.duplicate(ids) },
     { label: 'Удалить', shortcut: '⌫', danger: true, onSelect: () => editor.remove(ids) },
+    'separator',
+    { label: 'Отразить по X', shortcut: '⇧H', onSelect: () => editor.mirror('x', ids) },
+    { label: 'Отразить по Y', shortcut: '⇧V', onSelect: () => editor.mirror('y', ids) },
+    { label: 'Повернуть на 90°', shortcut: '⇧R', onSelect: () => editor.rotate(ids) },
     'separator',
     { label: 'На передний план', shortcut: '⇧]', onSelect: () => editor.toEdge(true, ids) },
     { label: 'Вперёд', shortcut: ']', onSelect: () => editor.reorder(1, ids) },

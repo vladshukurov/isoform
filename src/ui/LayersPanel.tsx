@@ -11,7 +11,7 @@ type Drop = { id: string; above: boolean };
 // Painter order, front first: a row covers everything listed below it.
 export function LayersPanel({ editor }: { editor: Editor }) {
   const { scene, selection, hovered } = editor;
-  const [editing, setEditing] = useState<string | null>(null);
+  const editing = editor.renaming, setEditing = editor.setRenaming;
   const [drop, setDrop] = useState<Drop | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const anchor = useRef<string | null>(null);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownUp, FileUp } from 'lucide-react';
+import { ArrowDownUp, FileUp, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
@@ -13,6 +13,7 @@ import { Tooltip } from './ui/Tooltip';
 
 type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | 'delete' | null;
 const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select');
+const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
 const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
 
 export function App() {
@@ -50,10 +51,23 @@ export function App() {
       if (e.key === '?') setDialog('shortcuts');
       if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); editor.remove(); }
       if (e.key === 'Escape') { editor.tool !== 'move' ? editor.setTool('move') : editor.setSelection([]); }
-      if (key === 'v') editor.setTool('move');
-      if (key === 'h') editor.setTool('hand');
-      if (key === 'b') editor.setTool('block');
-      if (key === 'p') editor.setTool('plate');
+      if (key === 'v' && !e.shiftKey) editor.setTool('move');
+      if (key === 'h' && !e.shiftKey) editor.setTool('hand');
+      if (key === 'b' && !e.shiftKey) editor.setTool('block');
+      if (key === 'p' && !e.shiftKey) editor.setTool('plate');
+      if (e.shiftKey && key === 'h') { editor.mirror('x'); return; }
+      if (e.shiftKey && key === 'v') { editor.mirror('y'); return; }
+      if (e.shiftKey && key === 'r') { editor.rotate(); return; }
+      if (e.key === 'Enter' && selection.length === 1) { e.preventDefault(); editor.setRenaming(selection[0]); return; }
+      // Tab walks the layers front to back, Shift+Tab back.
+      if (e.key === 'Tab' && scene?.objects.length) {
+        e.preventDefault();
+        const list = [...scene.objects].reverse().filter(p => !p.hidden);
+        const at = list.findIndex(p => p.id === selection.at(-1));
+        const next = list[(at + (e.shiftKey ? -1 : 1) + list.length) % list.length] ?? list[0];
+        editor.setSelection([next.id]);
+        return;
+      }
       if (e.key === '1') editor.setMode('rest');
       if (e.key === '2') editor.setMode('hover');
       if (e.key === ']' || e.key === '}') e.shiftKey ? editor.toEdge(true) : editor.reorder(1);
@@ -99,6 +113,14 @@ export function App() {
     }
   };
 
+  // The notice about an outside change stays a few seconds, for the open file only.
+  const external = editor.external?.name === editor.current ? editor.external : null;
+  useEffect(() => {
+    if (!editor.external) return;
+    const timer = setTimeout(editor.dismissExternal, 8000);
+    return () => clearTimeout(timer);
+  }, [editor.external]);
+
   // With no files yet the app opens on the new-file picker.
   const empty = editor.loaded && !editor.current;
 
@@ -122,6 +144,11 @@ export function App() {
         <Canvas editor={editor} />
         {scene && <Toolbar editor={editor} />}
         {editor.message && <div className="toast" role="status" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
+        {external && <div className="toast toast-action" role="status">
+          <span>Файл изменён снаружи{external.ids.length ? ` · ${external.ids.length} ${plural(external.ids.length)}` : ''}</span>
+          <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button>
+          <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
+        </div>}
         {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
       </main>
 

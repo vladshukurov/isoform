@@ -20,16 +20,17 @@ export function parse(text: string): Piece[] | undefined {
 
 // Pasted blocks keep their place, like Figma, unless that spot is exactly
 // where the originals still are; then they step one GAP to the right.
-export function paste(scene: Scene, pieces: Piece[]) {
+// An explicit offset (a repeated ⌘D) moves the copies by that much instead.
+export function paste(scene: Scene, pieces: Piece[], offset?: { x: number; y: number; z: number }) {
   const occupied = pieces.every(p => scene.objects.some(o => o.x === p.x && o.y === p.y && o.z === p.z && o.w === p.w && o.d === p.d && o.h === p.h));
   const minX = Math.min(...pieces.map(p => p.x)), maxX = Math.max(...pieces.map(p => p.x + p.w));
-  const shift = occupied ? maxX - minX + GAP : 0;
+  const by = offset ?? { x: occupied ? maxX - minX + GAP : 0, y: 0, z: 0 };
   let next = scene;
   const ids: string[] = [];
   for (const p of pieces) {
     const id = uniqueId(next, p.id);
-    const hover = p.hover && { ...p.hover, ...(p.hover.x !== undefined ? { x: p.hover.x + shift } : {}) };
-    next = { ...next, objects: [...next.objects, cleanHover({ ...p, id, x: p.x + shift, hover, locked: undefined, hidden: undefined })] };
+    const hover = p.hover && Object.fromEntries(Object.entries(p.hover).map(([k, v]) => [k, k in by ? v + by[k as 'x'] : v]));
+    next = { ...next, objects: [...next.objects, cleanHover({ ...p, id, x: p.x + by.x, y: p.y + by.y, z: p.z + by.z, hover, locked: undefined, hidden: undefined })] };
     ids.push(id);
   }
   return { scene: next, ids };

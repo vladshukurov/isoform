@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import * as clipboard from './clipboard';
+import * as ops from './ops';
 import { formatScene } from './format';
 import {
   cleanHover, depthSort, GAP, GROUND, hoverBox, insertByDepth, PLATE, pick, uniqueId, validateScene,
@@ -9,11 +10,17 @@ import {
 
 export type Mode = 'rest' | 'hover';
 export type Tool = 'move' | 'hand' | 'block' | 'plate';
-type History = { past: Scene[]; future: Scene[] };
+// Undo keeps the selection with each step, so ⌘Z puts you back where you were.
+type Snapshot = { scene: Scene; selection: string[] };
+type History = { past: Snapshot[]; future: Snapshot[] };
 export type SaveState = 'saved' | 'saving' | 'error';
 
 const snapshotLimit = 200;
 const validName = (name: string) => /^[a-z0-9][a-z0-9-]*$/.test(name);
+// Blocks added or changed between two versions of a scene.
+const changedIds = (before: Scene, after: Scene) => after.objects
+  .filter(p => { const was = before.objects.find(o => o.id === p.id); return !was || JSON.stringify(was) !== JSON.stringify(p); })
+  .map(p => p.id);
 const blank = (): Scene => ({ version: 2, title: 'Новая иллюстрация', motion: 'mechanical', objects: [] });
 
 // Editing a block in one state: at rest its hover travels with it (the
@@ -41,6 +48,9 @@ export function useEditor() {
   const [save, setSave] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [message, setMessageState] = useState<string | null>(null);
+  // The last change that came from disk (an agent), to flash and offer undo.
+  const [external, setExternal] = useState<{ name: string; ids: string[]; at: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const dirty = useRef(new Set<string>());
   const broken = useRef(new Set<string>());
@@ -106,8 +116,9 @@ export function useEditor() {
         if (before && formatScene(before) === formatScene(scene)) return;
         if (before) {
           const h = track(name);
-          h.past = [...h.past.slice(-snapshotLimit), before];
+          h.past = [...h.past.slice(-snapshotLimit), { scene: before, selection: sel.current }];
           h.future = [];
+          setExternal({ name, ids: changedIds(before, scene), at: Date.now() });
         }
         latest.current = { ...latest.current, [name]: scene };
         setFiles(latest.current);
@@ -171,8 +182,10 @@ export function useEditor() {
     if (after === before) return;
     if (record) {
       const h = track(name);
-      h.past = [...h.past.slice(-snapshotLimit), before];
+      h.past = [...h.past.slice(-snapshotLimit), { scene: before, selection: sel.current }];
       h.future = [];
+      // «Undo the outside change» would now undo this edit instead.
+      setExternal(null);
     }
     commit(name, after);
   }, []);
@@ -186,9 +199,9 @@ export function useEditor() {
     const from = direction === 'undo' ? h.past : h.future, to = direction === 'undo' ? h.future : h.past;
     const target = from.pop();
     if (!target) return;
-    to.push(latest.current[name]);
-    commit(name, target);
-    setSelection(sel.current.filter(id => target.objects.some(p => p.id === id)));
+    to.push({ scene: latest.current[name], selection: sel.current });
+    commit(name, target.scene);
+    setSelection(target.selection.filter(id => target.scene.objects.some(p => p.id === id)));
   };
 
   const updatePieces = useCallback((ids: string[], fn: (box: Box, piece: Piece) => Partial<Box>, record = true) =>
@@ -225,16 +238,29 @@ export function useEditor() {
     setSelection([piece.id]);
   };
 
-  const pasteInto = (pieces: Piece[]) => {
+  const pasteInto = (pieces: Piece[], offset?: { x: number; y: number; z: number }) => {
     const s = cur.current && latest.current[cur.current];
-    if (!s || !pieces.length) return;
-    const { scene: next, ids } = clipboard.paste(s, pieces);
+    if (!s || !pieces.length) return [];
+    const { scene: next, ids } = clipboard.paste(s, pieces, offset);
     change(() => next);
     setSelection(ids);
+    return ids;
   };
 
   // Copies go one GAP to the right of the originals, keeping their hover.
-  const duplicate = (ids = sel.current) => pasteInto(piecesOf(ids));
+  // Like Figma, if you move a copy and press ⌘D again, the next copy
+  // repeats that step: a row in two gestures.
+  const lastDuplicate = useRef<{ from: string[]; to: string[] } | null>(null);
+  const duplicate = (ids = sel.current) => {
+    const last = lastDuplicate.current, pieces = piecesOf(ids);
+    let offset: { x: number; y: number; z: number } | undefined;
+    if (last && ids.length === last.to.length && ids.every(id => last.to.includes(id))) {
+      const a = piecesOf(last.from)[0], b = piecesOf([last.to[0]])[0];
+      if (a && b) offset = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+    }
+    const copies = pasteInto(pieces, offset);
+    lastDuplicate.current = { from: ids, to: copies };
+  };
 
   const remove = (ids = sel.current) => {
     if (!ids.length) return;
@@ -252,6 +278,15 @@ export function useEditor() {
     if (system) navigator.clipboard?.writeText(clipboard.serialize(pieces)).catch(() => undefined);
   };
   const cut = (ids = sel.current) => { copy(ids); remove(ids); };
+  // A ready prompt that points an agent at these blocks in this file.
+  const copyForAgent = (ids = sel.current) => {
+    const pieces = piecesOf(ids);
+    if (!pieces.length || !cur.current) return;
+    const text = `В files/${cur.current}.json поправь блоки ${pieces.map(p => p.id).join(', ')}:\n\n`
+      + pieces.map(p => JSON.stringify(cleanHover(p))).join('\n')
+      + '\n\nЧто сделать: ';
+    navigator.clipboard?.writeText(text).then(() => setMessage('Промпт скопирован — вставьте в Claude или Codex и допишите задачу'), () => setMessage('Не удалось скопировать'));
+  };
   const paste = async (text?: string) => {
     const pieces = text !== undefined ? clipboard.parse(text) : copied.current;
     if (pieces?.length) pasteInto(pieces);
@@ -281,6 +316,31 @@ export function useEditor() {
   });
   const autoOrder = () => change(s => ({ ...s, objects: depthSort(s.objects) }));
   const clearHover = (ids = sel.current) => mapPieces(ids, ({ hover: _, delay: __, ...p }) => p);
+
+  // Arranging, on the state shown (rest or hover).
+  const shown = (ids: string[]) => new Map(piecesOf(ids).map(p => [p.id, mode === 'hover' ? hoverBox(p) : pick(p)]));
+  const alignTo = (axis: ops.Axis, edge: ops.Edge, ids = sel.current) => {
+    const at = ops.align(shown(ids), axis, edge);
+    updatePieces([...at.keys()], (_, p) => ({ [axis]: at.get(p.id)! }));
+  };
+  const distribute = (axis: ops.Axis, ids = sel.current) => {
+    const at = ops.distribute(shown(ids), axis);
+    if (at.size) updatePieces([...at.keys()], (_, p) => ({ [axis]: at.get(p.id)! }));
+  };
+  const replacePieces = (next: Piece[]) => {
+    const byId = new Map(next.map(p => [p.id, p]));
+    change(s => ({ ...s, objects: s.objects.map(p => byId.get(p.id) ?? p) }));
+  };
+  const mirror = (axis: 'x' | 'y', ids = sel.current) => { if (ids.length) replacePieces(ops.mirror(piecesOf(ids), axis)); };
+  const rotate = (ids = sel.current) => { if (ids.length) replacePieces(ops.rotate(piecesOf(ids))); };
+  // A delay wave through the animated blocks (the selection, or all of them).
+  const stagger = (step = .04, ids = sel.current) => {
+    const s = cur.current && latest.current[cur.current];
+    if (!s) return;
+    const animated = s.objects.filter(p => p.hover && !p.hidden && (!ids.length || ids.includes(p.id)));
+    const delays = ops.stagger(animated, step);
+    mapPieces([...delays.keys()], p => ({ ...p, delay: delays.get(p.id) || undefined }));
+  };
 
   const rename = (id: string, next: string) => {
     if (!scene || !next || next === id || scene.objects.some(p => p.id === next)) return false;
@@ -351,8 +411,10 @@ export function useEditor() {
 
   return {
     files, templates, loaded, local, root, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
+    external, dismissExternal: () => setExternal(null), renaming, setRenaming,
+    alignTo, distribute, mirror, rotate, stagger,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,
-    add, duplicate, remove, copy, cut, paste, reorder, toEdge, moveBefore, autoOrder, clearHover, rename,
+    add, duplicate, remove, copy, cut, copyForAgent, paste, reorder, toEdge, moveBefore, autoOrder, clearHover, rename,
     openFile, createFile, duplicateFile, importFile, renameFile, deleteFile,
     undo: () => step('undo'), redo: () => step('redo'),
   };

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Check, Copy, Plus, Sparkles, X } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
+import type { Scene } from '../model';
 
 function Dialog({ title, onClose, children, wide }: { title: string; onClose?: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -50,17 +51,19 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
 // The whole series next to the open file: equal weight, no look-alikes.
 export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
   const [hold, setHold] = useState(false);
-  const entries = [...(editor.scene && editor.current ? [[editor.current, editor.scene] as const] : []), ...Object.entries(editor.templates)];
+  // Your files first (the open one marked), then the site's scenes.
+  const tile = (key: string, name: string, scene: Scene, current = false, open?: () => void) => (
+    <button key={key} className={`tile${current ? ' is-current' : ''}`} data-tip={scene.title} onClick={open} disabled={!open}>
+      <div className="tile-art"><CardPreview scene={scene} hold={hold} /></div>
+      <span>{name}</span>
+    </button>
+  );
   return (
     <Dialog title="Серия" onClose={onClose} wide>
       <label className="check"><input type="checkbox" checked={hold} onChange={e => setHold(e.target.checked)} /> Всё в наведении</label>
       <div className="tiles">
-        {entries.map(([name, scene], i) => (
-          <div key={name} className={`tile${i === 0 && editor.scene ? ' is-current' : ''}`} data-tip={scene.title}>
-            <div className="tile-art"><CardPreview scene={scene} hold={hold} /></div>
-            <span>{name}</span>
-          </div>
-        ))}
+        {Object.entries(editor.files).map(([name, scene]) => tile(`f:${name}`, name, scene, name === editor.current, () => { editor.openFile(name); onClose(); }))}
+        {Object.entries(editor.templates).map(([name, scene]) => tile(`t:${name}`, `${name} · сайт`, scene))}
       </div>
     </Dialog>
   );
@@ -115,20 +118,28 @@ export function AgentDialog({ editor, onClose }: { editor: Editor; onClose: () =
   );
 }
 
-const KEYS: [string, string][] = [
-  ['V', 'Выбор'], ['H · Пробел', 'Рука'], ['B', 'Блок'], ['P', 'Плита'],
-  ['Alt + тащить', 'По высоте'], ['Shift', 'Шаг 10'], ['← → ↑ ↓', 'Сдвиг по X / Y'], ['Alt ↑ ↓', 'Сдвиг по высоте'],
-  ['⌘C · ⌘X · ⌘V', 'Копировать / вырезать / вставить'], ['⌘D', 'Дублировать'], ['⌘', 'Без привязки к соседям'], ['⌫', 'Удалить'], ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'],
-  ['⇧⌘H', 'Скрыть'], ['⇧⌘L', 'Заблокировать'], ['1 · 2', 'Дизайн / наведение'],
-  ['⌘\\', 'Скрыть панели'], ['⇧1', 'Вписать'], ['⌘ + колесо', 'Масштаб'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть'],
+const KEYS: [string, [string, string][]][] = [
+  ['Инструменты', [['V', 'Выбор'], ['H · Пробел', 'Рука'], ['B', 'Блок'], ['P', 'Плита']]],
+  ['Холст', [['Alt + тащить', 'По высоте'], ['Shift', 'Шаг 10'], ['⌘', 'Без привязки к соседям'], ['Alt + ручка', 'Размер от центра'],
+    ['⇧1', 'Вписать'], ['⇧2', 'Показать выделенное'], ['⌘ + колесо', 'Масштаб'], ['⌘\\', 'Скрыть панели']]],
+  ['Блоки', [['← → ↑ ↓', 'Сдвиг по X / Y'], ['Alt ↑ ↓', 'Сдвиг по высоте'], ['⌘C · ⌘X · ⌘V', 'Копировать / вырезать / вставить'],
+    ['⌘D', 'Дублировать (повторяет последний сдвиг)'], ['⌫', 'Удалить'], ['⇧H · ⇧V', 'Отразить по X / Y'], ['⇧R', 'Повернуть на 90°'],
+    ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'], ['⇧⌘H', 'Скрыть'], ['⇧⌘L', 'Заблокировать']]],
+  ['Слои и файл', [['Tab · ⇧Tab', 'Следующий / предыдущий слой'], ['Enter', 'Переименовать'], ['1 · 2', 'Дизайн / наведение'],
+    ['⌘O', 'Открыть JSON'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть']]],
 ];
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title="Горячие клавиши" onClose={onClose}>
-      <dl className="keys">
-        {KEYS.map(([k, v]) => <div key={k}><dt>{v}</dt><dd><kbd>{k}</kbd></dd></div>)}
-      </dl>
+      <div className="keys">
+        {KEYS.map(([group, keys]) => (
+          <dl key={group}>
+            <h3>{group}</h3>
+            {keys.map(([k, v]) => <div key={k}><dt>{v}</dt><dd><kbd>{k}</kbd></dd></div>)}
+          </dl>
+        ))}
+      </div>
     </Dialog>
   );
 }

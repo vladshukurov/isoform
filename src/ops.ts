@@ -1,0 +1,54 @@
+// Arranging blocks: align, distribute, mirror, rotate, stagger. Pure
+// functions over pieces; the editor applies the results.
+import { cleanHover, hoverBox, pick, type Box, type Piece } from './model';
+import { bounds } from './snap';
+
+export type Axis = 'x' | 'y' | 'z';
+export type Edge = 'min' | 'center' | 'max';
+const SIZE = { x: 'w', y: 'd', z: 'h' } as const;
+
+// New positions along one axis, for the boxes as they are shown (rest or hover).
+export function align(boxes: Map<string, Box>, axis: Axis, edge: Edge) {
+  const all = bounds([...boxes.values()]), s = SIZE[axis];
+  const target = { min: all[axis], center: all[axis] + all[s] / 2, max: all[axis] + all[s] }[edge];
+  return new Map([...boxes].map(([id, b]) =>
+    [id, edge === 'min' ? target : edge === 'center' ? target - b[s] / 2 : target - b[s]]));
+}
+
+// Equal gaps between neighbours, keeping the outermost two in place.
+export function distribute(boxes: Map<string, Box>, axis: Axis) {
+  const s = SIZE[axis];
+  const sorted = [...boxes].sort(([, a], [, b]) => a[axis] - b[axis]);
+  if (sorted.length < 3) return new Map<string, number>();
+  const first = sorted[0][1], last = sorted.at(-1)![1];
+  const used = sorted.reduce((sum, [, b]) => sum + b[s], 0);
+  const gap = (last[axis] + last[s] - first[axis] - used) / (sorted.length - 1);
+  let at = first[axis];
+  return new Map(sorted.map(([id, b]) => { const v = at; at += b[s] + gap; return [id, v]; }));
+}
+
+// Transforms a piece's rest and hover boxes together, so its animation
+// is mirrored or turned with it.
+function transform(pieces: Piece[], fn: (b: Box) => Box) {
+  return pieces.map(p => {
+    const rest = fn(pick(p)), hover = fn(hoverBox(p));
+    return cleanHover({ ...p, ...rest, hover: p.hover ? hover : undefined });
+  });
+}
+
+// Mirror across the selection's centre plane (the rest bounds).
+export function mirror(pieces: Piece[], axis: 'x' | 'y') {
+  const all = bounds(pieces.map(pick)), s = SIZE[axis], c2 = 2 * all[axis] + all[s];
+  return transform(pieces, b => ({ ...b, [axis]: c2 - b[axis] - b[s] }));
+}
+
+// A quarter turn around the vertical axis through the selection's centre.
+export function rotate(pieces: Piece[]) {
+  const all = bounds(pieces.map(pick)), cx = all.x + all.w / 2, cy = all.y + all.d / 2;
+  return transform(pieces, b => ({ ...b, x: cx - (b.y + b.d - cy), y: cy + (b.x - cx), w: b.d, d: b.w }));
+}
+
+// Delays stepping back to front in painter order: a wave through the scene.
+export function stagger(pieces: Piece[], step = .04) {
+  return new Map(pieces.map((p, i) => [p.id, +(i * step).toFixed(3)]));
+}

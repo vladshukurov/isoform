@@ -43,7 +43,10 @@ export function Canvas({ editor }: { editor: Editor }) {
 
   useLayoutEffect(() => {
     const el = host.current!;
-    const observer = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    // Measure now too: a background tab gets no observer callbacks until shown.
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -54,8 +57,8 @@ export function Canvas({ editor }: { editor: Editor }) {
   const locked = useMemo(() => new Set(objects.filter(p => p.locked).map(p => p.id)), [objects]);
   const selected = objects.filter(p => selection.includes(p.id));
 
-  const fitView = () => {
-    const all = objects.flatMap(p => [pick(p), hoverBox(p)]);
+  const fitView = (only?: string[]) => {
+    const all = objects.filter(p => !only?.length || only.includes(p.id)).flatMap(p => [pick(p), hoverBox(p)]);
     const points = all.length ? all.flatMap(b => vertices(b).map(project)) : [{ x: -260, y: -260 }, { x: 260, y: 200 }];
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
     const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
@@ -84,11 +87,12 @@ export function Canvas({ editor }: { editor: Editor }) {
   }, [size]);
 
   useEffect(() => {
-    const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement).closest('input, textarea, select');
+    const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement | null)?.closest?.('input, textarea, select');
     const down = (e: KeyboardEvent) => {
       if (typing(e) || dialogOpen()) return;
       if (e.code === 'Space') { e.preventDefault(); setSpace(true); }
       if (e.shiftKey && e.code === 'Digit1') fitView();
+      if (e.shiftKey && e.code === 'Digit2' && selection.length) fitView(selection);
       if (e.shiftKey && e.code === 'Digit0') setView(v => v && { ...v, s: 1 });
       if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomAt(1.25); }
       if ((e.metaKey || e.ctrlKey) && e.key === '-') { e.preventDefault(); zoomAt(.8); }
@@ -219,13 +223,21 @@ export function Canvas({ editor }: { editor: Editor }) {
       const along = (dx * axis.x + dy * axis.y) / view.s;
       if (!d.moved && Math.abs(along * view.s) < 2) return;
       if (!d.moved) { d.moved = true; editor.checkpoint(); }
+      // Alt resizes from the centre, both sides at once, like Figma.
+      const pos = ({ w: 'x', d: 'y', h: 'z' } as const)[d.key];
+      if (e.altKey) {
+        const value = Math.max(SNAP, snap(d.start[d.key] + 2 * along, step * 2));
+        setGuides([]);
+        editor.updatePieces([d.id], () => ({ [d.key]: value, [pos]: d.start[pos] - (value - d.start[d.key]) / 2 }), false);
+        return;
+      }
       let value = Math.max(SNAP, snap(d.start[d.key] + along, step));
       if (!e.metaKey) {
         const pulled = snapSize({ ...d.start, [d.key]: value }, d.key, othersThan(new Set([d.id])), threshold);
         value = pulled.size;
         setGuides(pulled.guides);
       }
-      editor.updatePieces([d.id], () => ({ [d.key]: value }), false);
+      editor.updatePieces([d.id], () => ({ [d.key]: value, [pos]: d.start[pos] }), false);
     }
   };
 
@@ -254,7 +266,7 @@ export function Canvas({ editor }: { editor: Editor }) {
     setMenu({
       x: e.clientX, y: e.clientY,
       items: ids.length ? pieceMenu(editor, ids) : [
-        { label: 'Вписать', shortcut: '⇧1', onSelect: fitView },
+        { label: 'Вписать', shortcut: '⇧1', onSelect: () => fitView() },
         { label: 'Масштаб 100%', shortcut: '⇧0', onSelect: () => zoomAt(1 / view.s, p.x, p.y) },
         'separator',
         { label: 'Выделить всё', shortcut: '⌘A', onSelect: () => editor.setSelection(objects.filter(o => !o.locked).map(o => o.id)) },
@@ -311,6 +323,9 @@ export function Canvas({ editor }: { editor: Editor }) {
           {hovered && !selection.includes(hovered) && objects.find(p => p.id === hovered) &&
             <path className="hover-outline" d={outline(boxOf(objects.find(p => p.id === hovered)!))} />}
           {selected.map(p => <path key={p.id} className="select-outline" d={outline(boxOf(p))} />)}
+          {/* Blocks an agent just changed flash once. */}
+          {editor.external?.name === editor.current && objects.filter(p => editor.external!.ids.includes(p.id)).map(p =>
+            <path key={`${p.id}-${editor.external!.at}`} className="flash-outline" d={outline(boxOf(p))} />)}
           {guides.map((g, i) => {
             const a = project(g.from), b = project(g.to);
             return <path key={i} className="guide" d={`M ${a.x} ${a.y} L ${b.x} ${b.y}`} />;
@@ -330,7 +345,7 @@ export function Canvas({ editor }: { editor: Editor }) {
           width={Math.abs(drag.to.x - drag.x)} height={Math.abs(drag.to.y - drag.y)} />}
       </svg>
       {mode === 'hover' && <div className="mode-chip">Наведение</div>}
-      <button className="zoom" onClick={fitView} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
+      <button className="zoom" onClick={() => fitView()} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </div>
   );
