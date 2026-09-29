@@ -64,8 +64,11 @@ export function Canvas({ editor }: { editor: Editor }) {
     const points = all.length ? all.flatMap(b => vertices(b).map(project)) : [{ x: -260, y: -260 }, { x: 260, y: 200 }];
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
     const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-    const s = Math.max(.1, Math.min((size.w - 160) / Math.max(w, 1), (size.h - 200) / Math.max(h, 1), 2.5));
-    setView({ s, ox: size.w / 2 - s * (Math.min(...xs) + w / 2), oy: size.h / 2 - 20 - s * (Math.min(...ys) + h / 2) });
+    // The whole scene sits comfortably in the middle, about half the canvas,
+    // centred above the tool bar; showing a selection fits it tighter.
+    const room = only?.length ? .8 : .5, bar = 64, avail = size.h - bar;
+    const s = Math.max(.1, Math.min(size.w * room / Math.max(w, 1), avail * room / Math.max(h, 1), only?.length ? 4 : 1.5));
+    setView({ s, ox: size.w / 2 - s * (Math.min(...xs) + w / 2), oy: avail / 2 - s * (Math.min(...ys) + h / 2) });
   };
   const zoomAt = (factor: number, mx = size.w / 2, my = size.h / 2) => setView(v => {
     if (!v) return v;
@@ -279,8 +282,8 @@ export function Canvas({ editor }: { editor: Editor }) {
 
   // Floor grid on the implied ground, 10 units per cell, grown to fit the scene.
   const extent = boxes.length ? bounds(boxes) : undefined;
-  const lo = Math.min(-300, Math.floor(Math.min(extent?.x ?? 0, extent?.y ?? 0) / 50) * 50 - 100);
-  const hi = Math.max(300, Math.ceil(Math.max((extent?.x ?? 0) + (extent?.w ?? 0), (extent?.y ?? 0) + (extent?.d ?? 0)) / 50) * 50 + 100);
+  const lo = Math.min(-600, Math.floor(Math.min(extent?.x ?? 0, extent?.y ?? 0) / 50) * 50 - 100);
+  const hi = Math.max(600, Math.ceil(Math.max((extent?.x ?? 0) + (extent?.w ?? 0), (extent?.y ?? 0) + (extent?.d ?? 0)) / 50) * 50 + 100);
   const grid: string[] = [];
   const line = (a: { x: number; y: number }, b: { x: number; y: number }) => {
     const p = project({ ...a, z: GROUND }), q = project({ ...b, z: GROUND });
