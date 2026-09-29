@@ -62,7 +62,7 @@ export function Canvas({ editor }: { editor: Editor }) {
     const points = all.length ? all.flatMap(b => vertices(b).map(project)) : [{ x: -260, y: -260 }, { x: 260, y: 200 }];
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
     const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-    const s = Math.min((size.w - 160) / Math.max(w, 1), (size.h - 200) / Math.max(h, 1), 2.5);
+    const s = Math.max(.1, Math.min((size.w - 160) / Math.max(w, 1), (size.h - 200) / Math.max(h, 1), 2.5));
     setView({ s, ox: size.w / 2 - s * (Math.min(...xs) + w / 2), oy: size.h / 2 - 20 - s * (Math.min(...ys) + h / 2) });
   };
   const zoomAt = (factor: number, mx = size.w / 2, my = size.h / 2) => setView(v => {
@@ -226,7 +226,7 @@ export function Canvas({ editor }: { editor: Editor }) {
       // Alt resizes from the centre, both sides at once, like Figma.
       const pos = ({ w: 'x', d: 'y', h: 'z' } as const)[d.key];
       if (e.altKey) {
-        const value = Math.max(SNAP, snap(d.start[d.key] + 2 * along, step * 2));
+        const value = Math.max(SNAP * 2, d.start[d.key] + snap(2 * along, step * 2));
         setGuides([]);
         editor.updatePieces([d.id], () => ({ [d.key]: value, [pos]: d.start[pos] - (value - d.start[d.key]) / 2 }), false);
         return;

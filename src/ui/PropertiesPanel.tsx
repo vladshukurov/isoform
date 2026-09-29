@@ -56,9 +56,9 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
         <section>
           <div className="segmented wide">
             <button aria-pressed={scene.motion === 'mechanical'} data-tip="Детали ездят как настоящие: ящик выдвигается, тумблер переключается"
-              onClick={() => editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
+              onClick={() => scene.motion !== 'mechanical' && editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
             <button aria-pressed={scene.motion === 'layered'} data-tip="Схема раскрывается слоями и собирается при появлении"
-              onClick={() => editor.change(s => ({ ...s, motion: 'layered' }))}>Слои</button>
+              onClick={() => scene.motion !== 'layered' && editor.change(s => ({ ...s, motion: 'layered' }))}>Слои</button>
           </div>
         </section>
       )}

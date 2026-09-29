@@ -4,7 +4,7 @@ import * as clipboard from './clipboard';
 import * as ops from './ops';
 import { formatScene } from './format';
 import {
-  cleanHover, depthSort, GAP, GROUND, hoverBox, insertByDepth, PLATE, pick, uniqueId, validateScene,
+  cleanHover, depthSort, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueId, validateScene,
   type Box, type Piece, type Scene,
 } from './model';
 
@@ -52,6 +52,7 @@ export function useEditor() {
   const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const stacks = useRef<Record<string, History>>({});
+  const lastDuplicate = useRef<{ file: string | null; from: string[]; to: string[] } | null>(null);
   const dirty = useRef(new Set<string>());
   const broken = useRef(new Set<string>());
   // Mirrors so actions, async flows and menus built earlier read the latest values.
@@ -203,12 +204,15 @@ export function useEditor() {
     const target = from.pop();
     if (!target) return;
     to.push({ scene: latest.current[name], selection: sel.current });
+    setExternal(null);
+    lastDuplicate.current = null;
     commit(name, target.scene);
     setSelection(target.selection.filter(id => target.scene.objects.some(p => p.id === id)));
   };
 
+  // Locked blocks never move, resize or disappear, whatever asks.
   const updatePieces = useCallback((ids: string[], fn: (box: Box, piece: Piece) => Partial<Box>, record = true) =>
-    change(s => ({ ...s, objects: s.objects.map(p => ids.includes(p.id) ? patchPiece(p, fn(mode === 'hover' ? hoverBox(p) : pick(p), p), mode) : p) }), record),
+    change(s => ({ ...s, objects: s.objects.map(p => ids.includes(p.id) && !p.locked ? patchPiece(p, fn(mode === 'hover' ? hoverBox(p) : pick(p), p), mode) : p) }), record),
   [change, mode]);
 
   const updatePiece = (id: string, patch: Partial<Piece>, record = true) =>
@@ -225,6 +229,7 @@ export function useEditor() {
 
   const selected = scene?.objects.filter(p => selection.includes(p.id)) ?? [];
   const piecesOf = (ids: string[]) => (latest.current[cur.current ?? ''] ?? blank()).objects.filter(p => ids.includes(p.id));
+  const unlocked = (ids: string[]) => piecesOf(ids).filter(p => !p.locked);
 
   // Without a drawn box a new block lands on top of the selection (one GAP
   // above, like the series' floating layers), or on the ground at the origin.
@@ -253,19 +258,19 @@ export function useEditor() {
   // Copies go one GAP to the right of the originals, keeping their hover.
   // Like Figma, if you move a copy and press ⌘D again, the next copy
   // repeats that step: a row in two gestures.
-  const lastDuplicate = useRef<{ from: string[]; to: string[] } | null>(null);
   const duplicate = (ids = sel.current) => {
     const last = lastDuplicate.current, pieces = piecesOf(ids);
     let offset: { x: number; y: number; z: number } | undefined;
-    if (last && ids.length === last.to.length && ids.every(id => last.to.includes(id))) {
-      const a = piecesOf(last.from)[0], b = piecesOf([last.to[0]])[0];
+    if (last && last.file === cur.current && ids.length === last.to.length && ids.every(id => last.to.includes(id))) {
+      const a = shown([last.from[0]]).get(last.from[0]), b = shown([last.to[0]]).get(last.to[0]);
       if (a && b) offset = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
     }
     const copies = pasteInto(pieces, offset);
-    lastDuplicate.current = { from: ids, to: copies };
+    lastDuplicate.current = { file: cur.current, from: ids, to: copies };
   };
 
-  const remove = (ids = sel.current) => {
+  const remove = (all = sel.current) => {
+    const ids = unlocked(all).map(p => p.id);
     if (!ids.length) return;
     change(s => ({ ...s, objects: s.objects.filter(p => !ids.includes(p.id)) }));
     setSelection(sel.current.filter(id => !ids.includes(id)));
@@ -334,13 +339,14 @@ export function useEditor() {
     const byId = new Map(next.map(p => [p.id, p]));
     change(s => ({ ...s, objects: s.objects.map(p => byId.get(p.id) ?? p) }));
   };
-  const mirror = (axis: 'x' | 'y', ids = sel.current) => { if (ids.length) replacePieces(ops.mirror(piecesOf(ids), axis)); };
-  const rotate = (ids = sel.current) => { if (ids.length) replacePieces(ops.rotate(piecesOf(ids))); };
+  const mirror = (axis: 'x' | 'y', ids = sel.current) => { const p = unlocked(ids); if (p.length) replacePieces(ops.mirror(p, axis)); };
+  const rotate = (ids = sel.current) => { const p = unlocked(ids); if (p.length) replacePieces(ops.rotate(p)); };
   // A delay wave through the animated blocks (the selection, or all of them).
   const stagger = (step = .04, ids = sel.current) => {
     const s = cur.current && latest.current[cur.current];
     if (!s) return;
-    const animated = s.objects.filter(p => p.hover && !p.hidden && (!ids.length || ids.includes(p.id)));
+    const animated = s.objects.filter(p => hoverKind(p) !== 'rest' && !p.hidden && (!ids.length || ids.includes(p.id)));
+    if (!animated.length) return;
     const delays = ops.stagger(animated, step);
     mapPieces([...delays.keys()], p => ({ ...p, delay: delays.get(p.id) || undefined }));
   };
@@ -358,7 +364,7 @@ export function useEditor() {
     if (!taken(base)) return base;
     for (let i = 2; ; i++) if (!taken(`${base}-${i}`)) return `${base}-${i}`;
   };
-  const openFile = (name: string | null) => { setCurrent(name); setSelection([]); setMode('rest'); setTool('move'); };
+  const openFile = (name: string | null) => { setCurrent(name); setSelection([]); setMode('rest'); setTool('move'); lastDuplicate.current = null; };
   const addFile = (base: string, scene: Scene) => {
     const name = freeName(base);
     commit(name, scene);
@@ -398,14 +404,14 @@ export function useEditor() {
   const deleteFile = async () => {
     const name = cur.current;
     if (!name) return;
-    dirty.current.delete(name);
-    delete stacks.current[name];
     try {
       await api.deleteFile(name);
     } catch (error) {
       setMessage((error as Error).message);
       return;
     }
+    dirty.current.delete(name);
+    delete stacks.current[name];
     const { [name]: _, ...rest } = latest.current;
     latest.current = rest;
     setFiles(rest);

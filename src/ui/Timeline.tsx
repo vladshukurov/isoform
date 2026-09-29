@@ -4,7 +4,7 @@ import { ENTER } from '../anim';
 import type { Editor } from '../editor';
 import { hoverKind } from '../model';
 
-const round = (v: number) => Math.max(0, Math.round(v / .02) * .02);
+const round = (v: number) => Math.max(0, +(Math.round(v / .02) * .02).toFixed(2));
 
 // When each animated block starts and how long it runs; drag a bar to
 // change its delay. ▶ plays the hover on the preview card.
@@ -47,6 +47,7 @@ export function Timeline({ editor, onPlay, playing }: { editor: Editor; onPlay: 
             <div className="timeline-track">
               <div className="timeline-bar" style={{ left: pct(p.delay ?? 0), width: pct(ENTER) }}
                 data-tip={`${(p.delay ?? 0).toFixed(2)} с`}
+                onClick={e => e.stopPropagation()}
                 onPointerDown={e => {
                   e.stopPropagation();
                   e.currentTarget.setPointerCapture(e.pointerId);

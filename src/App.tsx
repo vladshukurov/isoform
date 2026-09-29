@@ -40,7 +40,8 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e.target) || dialog) return;
+      // Menus handle their own keys; the empty-state picker counts as a dialog.
+      if (typing(e.target) || dialog || empty || document.querySelector('.menu')) return;
       const cmd = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
       if (cmd && key === 'z') { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
       if (cmd && key === 'd') { e.preventDefault(); editor.duplicate(); return; }
@@ -67,9 +68,10 @@ export function App() {
       if (e.shiftKey && key === 'r') { editor.rotate(); return; }
       if (e.key === 'Enter' && selection.length === 1) { e.preventDefault(); editor.setRenaming(selection[0]); return; }
       // Tab walks the layers front to back, Shift+Tab back.
-      if (e.key === 'Tab' && scene?.objects.length) {
+      const layers = [...scene?.objects ?? []].reverse().filter(p => !p.hidden);
+      if (e.key === 'Tab' && layers.length) {
         e.preventDefault();
-        const list = [...scene.objects].reverse().filter(p => !p.hidden);
+        const list = layers;
         const at = list.findIndex(p => p.id === selection.at(-1));
         const next = list[(at + (e.shiftKey ? -1 : 1) + list.length) % list.length] ?? list[0];
         editor.setSelection([next.id]);
