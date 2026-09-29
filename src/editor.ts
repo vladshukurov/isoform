@@ -49,7 +49,7 @@ export function useEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [message, setMessageState] = useState<string | null>(null);
   // The last change that came from disk (an agent), to flash and offer undo.
-  const [external, setExternal] = useState<{ name: string; ids: string[]; at: number } | null>(null);
+  const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const dirty = useRef(new Set<string>());
@@ -122,8 +122,11 @@ export function useEditor() {
         }
         latest.current = { ...latest.current, [name]: scene };
         setFiles(latest.current);
-        if (!before) { setCurrent(name); setSelection([]); }
-        else setSelection(sel.current.filter(id => scene.objects.some(p => p.id === id)));
+        // A new file opens by itself only when nothing else is open;
+        // otherwise it is offered, so an agent never yanks you away.
+        if (!before && !cur.current) { setCurrent(name); setSelection([]); }
+        else if (!before) setExternal({ name, ids: [], at: Date.now(), created: true });
+        else if (cur.current === name) setSelection(sel.current.filter(id => scene.objects.some(p => p.id === id)));
       } catch (error) {
         broken.current.add(name);
         setMessage(`${name}.json: ${(error as Error).message}`);

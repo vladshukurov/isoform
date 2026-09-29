@@ -19,13 +19,13 @@ const TIP: Record<BoxKey, string> = { x: 'X', y: 'Y', z: 'Высота над п
 
 // Figma's right panel: the design of the rest state, and a second tab for
 // what changes on hover.
-export function PropertiesPanel({ editor, dark }: { editor: Editor; dark: boolean }) {
+export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dark: boolean; resizer?: React.ReactNode }) {
   const { scene, selected, mode, current } = editor;
   const [pinned, setPinned] = useState(false);
   const [playing, setPlaying] = useState<number | null>(null);
   const playTimer = useRef(0);
   const titleEdit = useRef(false);
-  if (!scene || !current) return <aside className="panel right" />;
+  if (!scene || !current) return <aside className="panel right">{resizer}</aside>;
   const hover = mode === 'hover';
   const boxOf = (p: Piece): Box => hover ? hoverBox(p) : pick(p);
   const common = (read: (p: Piece) => number | undefined) => {
@@ -42,6 +42,7 @@ export function PropertiesPanel({ editor, dark }: { editor: Editor; dark: boolea
 
   return (
     <aside className="panel right">
+      {resizer}
       <div className="tabs" role="tablist">
         <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')} data-tip="Дизайн" data-kbd="1">Дизайн</button>
         <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')} data-tip="Состояние при наведении" data-kbd="2">Наведение</button>

@@ -7,6 +7,7 @@ import { Canvas } from './ui/Canvas';
 import { AgentDialog, ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
 import { FileHeader } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
+import { PanelResizer } from './ui/PanelResizer';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Toolbar } from './ui/Toolbar';
 import { Tooltip } from './ui/Tooltip';
@@ -14,6 +15,10 @@ import { Tooltip } from './ui/Tooltip';
 type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | 'delete' | null;
 const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select');
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
+const readWidths = () => {
+  try { const v = JSON.parse(localStorage.getItem('isoform-panels') ?? ''); if (Number.isFinite(v?.left) && Number.isFinite(v?.right)) return v as { left: number; right: number }; } catch { /* first run */ }
+  return { left: 240, right: 240 };
+};
 const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
 
 export function App() {
@@ -21,6 +26,8 @@ export function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dark, setDark] = useState(readTheme);
   const [chrome, setChrome] = useState(true);
+  const [widths, setWidths] = useState(readWidths);
+  useEffect(() => { try { localStorage.setItem('isoform-panels', JSON.stringify(widths)); } catch { /* private mode */ } }, [widths]);
   const [dropping, setDropping] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const pendingPaste = useRef(0);
@@ -114,7 +121,7 @@ export function App() {
   };
 
   // The notice about an outside change stays a few seconds, for the open file only.
-  const external = editor.external?.name === editor.current ? editor.external : null;
+  const external = editor.external?.name === editor.current || editor.external?.created ? editor.external : null;
   useEffect(() => {
     if (!editor.external) return;
     const timer = setTimeout(editor.dismissExternal, 8000);
@@ -125,7 +132,7 @@ export function App() {
   const empty = editor.loaded && !editor.current;
 
   return (
-    <div className={`app${chrome ? '' : ' is-bare'}`}
+    <div className={`app${chrome ? '' : ' is-bare'}`} style={chrome ? { gridTemplateColumns: `${widths.left}px 1fr ${widths.right}px` } : undefined}
       onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } }}
       onDragLeave={e => { if (e.currentTarget === e.target || !e.relatedTarget) setDropping(false); }}
       onDrop={e => { if (e.dataTransfer.files.length) { e.preventDefault(); setDropping(false); open(e.dataTransfer.files); } }}>
@@ -138,6 +145,7 @@ export function App() {
           <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={13} /></button>
         </div>}
         <LayersPanel editor={editor} />
+        <PanelResizer side="left" width={widths.left} onWidth={left => setWidths(w => ({ ...w, left }))} />
       </aside>
 
       <main className="stage">
@@ -145,14 +153,18 @@ export function App() {
         {scene && <Toolbar editor={editor} />}
         {editor.message && <div className="toast" role="status" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
         {external && <div className="toast toast-action" role="status">
-          <span>Файл изменён снаружи{external.ids.length ? ` · ${external.ids.length} ${plural(external.ids.length)}` : ''}</span>
-          <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button>
+          {external.created
+            ? <><span>Новый файл {external.name}</span>
+                <button onClick={() => { editor.openFile(external.name); editor.dismissExternal(); }}>Открыть</button></>
+            : <><span>Файл изменён снаружи{external.ids.length ? ` · ${external.ids.length} ${plural(external.ids.length)}` : ''}</span>
+                <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button></>}
           <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
         </div>}
         {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
       </main>
 
-      <PropertiesPanel editor={editor} dark={dark} />
+      <PropertiesPanel editor={editor} dark={dark}
+        resizer={<PanelResizer side="right" width={widths.right} onWidth={right => setWidths(w => ({ ...w, right }))} />} />
 
       <input ref={picker} type="file" accept=".json,application/json" multiple hidden
         onChange={e => { open(e.target.files); e.target.value = ''; }} />
