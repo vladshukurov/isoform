@@ -51,7 +51,7 @@ export function NumberField({ label, tip, value, step = 2, min, accent, onCommit
         onPointerUp={() => { scrub.current = null; }}>
         {label}
       </span>
-      <input value={text} placeholder={value === undefined ? 'Смешано' : undefined} inputMode="decimal"
+      <input value={text} placeholder={value === undefined ? '—' : undefined} inputMode="decimal"
         onChange={e => setText(e.target.value)} onBlur={commit} onFocus={e => e.target.select()}
         onKeyDown={e => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

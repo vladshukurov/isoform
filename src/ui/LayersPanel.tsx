@@ -43,10 +43,12 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   if (!list.length) return <div className="layers layers-empty"><Box size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>;
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
-      {list.map(p => {
+      {list.map((p, i) => {
         const kind = hoverKind(p);
         const isSelected = selection.includes(p.id);
-        const cls = ['layer', isSelected && 'is-selected', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden',
+        // Neighbouring selected rows join into one block, as in Figma.
+        const joinUp = isSelected && selection.includes(list[i - 1]?.id), joinDown = isSelected && selection.includes(list[i + 1]?.id);
+        const cls = ['layer', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden',
           drop?.id === p.id && (drop.above ? 'drop-above' : 'drop-below')].filter(Boolean).join(' ');
         return (
           <div key={p.id} className={cls} draggable={editing !== p.id}
@@ -83,17 +85,19 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                   }}
                   onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
               : <span className="layer-name">{p.id}</span>}
-            {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается: ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={12} /></span>}
-            {kind !== 'rest' && <span className="layer-motion" data-tip={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
-              {kind === 'move' ? <MoveUpRight size={12} /> : <Scaling size={12} />}
-            </span>}
+            <span className="layer-status">
+              {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={13} /></span>}
+              {kind !== 'rest' && <span className="layer-motion" data-tip={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
+                {kind === 'move' ? <MoveUpRight size={13} /> : <Scaling size={13} />}
+              </span>}
+            </span>
             <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'locked'); }}>
-              {p.locked ? <Lock size={12} /> : <LockOpen size={12} />}
+              {p.locked ? <Lock size={13} /> : <LockOpen size={13} />}
             </button>
             <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'hidden'); }}>
-              {p.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+              {p.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
           </div>
         );

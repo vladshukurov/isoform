@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { Box as BoxIcon } from 'lucide-react';
 import { Art } from '../Art';
 import type { Editor } from '../editor';
 import { AXIS, outline, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
 import { GAP, GROUND, hoverBox, hoverKind, pick, PLATE, SNAP, type Box } from '../model';
 import { bounds, snapMove, snapPoint, snapSize, type Guide } from '../snap';
 import { pieceMenu } from './actions';
+import { Toolbar } from './Toolbar';
 import { Menu, type MenuItem } from './Menu';
 
 type View = { s: number; ox: number; oy: number };
@@ -345,7 +347,9 @@ export function Canvas({ editor }: { editor: Editor }) {
           width={Math.abs(drag.to.x - drag.x)} height={Math.abs(drag.to.y - drag.y)} />}
       </svg>
       {mode === 'hover' && <div className="mode-chip">Наведение</div>}
-      <button className="zoom" onClick={() => fitView()} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
+      {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
+      {!objects.length && tool === 'move' && <div className="canvas-empty"><BoxIcon size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>}
+      <Toolbar editor={editor} zoom={<button className="zoom" onClick={() => fitView()} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </div>
   );

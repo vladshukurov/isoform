@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Check, Copy, Plus, Sparkles, X } from 'lucide-react';
+import { Box, Check, Copy, Plus, Sparkles, X } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import type { Scene } from '../model';
@@ -38,9 +38,9 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
           <span>С Claude или Codex</span>
         </button>
         {Object.entries(editor.templates).map(([name, scene]) => (
-          <button key={name} className="tile" onClick={() => create(name)} data-tip={scene.title}>
+          <button key={name} className="tile" onClick={() => create(name)} data-tip={name}>
             <div className="tile-art"><CardPreview scene={scene} /></div>
-            <span>{name}</span>
+            <span>{scene.title}</span>
           </button>
         ))}
       </div>
@@ -54,16 +54,22 @@ export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () 
   // Your files first (the open one marked), then the site's scenes.
   const tile = (key: string, name: string, scene: Scene, current = false, open?: () => void) => (
     <button key={key} className={`tile${current ? ' is-current' : ''}`} data-tip={scene.title} onClick={open} disabled={!open}>
-      <div className="tile-art"><CardPreview scene={scene} hold={hold} /></div>
+      <div className="tile-art">{scene.objects.length ? <CardPreview scene={scene} hold={hold} /> : <div className="tile-blank"><Box size={20} /></div>}</div>
       <span>{name}</span>
     </button>
   );
   return (
     <Dialog title="Серия" onClose={onClose} wide>
       <label className="check"><input type="checkbox" checked={hold} onChange={e => setHold(e.target.checked)} /> Всё в наведении</label>
+      {Object.keys(editor.files).length > 0 && <>
+        <h3 className="tiles-heading">Мои</h3>
+        <div className="tiles">
+          {Object.entries(editor.files).map(([name, scene]) => tile(`f:${name}`, name, scene, name === editor.current, () => { editor.openFile(name); onClose(); }))}
+        </div>
+      </>}
+      <h3 className="tiles-heading">Сайт</h3>
       <div className="tiles">
-        {Object.entries(editor.files).map(([name, scene]) => tile(`f:${name}`, name, scene, name === editor.current, () => { editor.openFile(name); onClose(); }))}
-        {Object.entries(editor.templates).map(([name, scene]) => tile(`t:${name}`, `${name} · сайт`, scene))}
+        {Object.entries(editor.templates).map(([name, scene]) => tile(`t:${name}`, scene.title, scene))}
       </div>
     </Dialog>
   );
@@ -123,7 +129,7 @@ const KEYS: [string, [string, string][]][] = [
   ['Холст', [['Alt + тащить', 'По высоте'], ['Shift', 'Шаг 10'], ['⌘', 'Без привязки к соседям'], ['Alt + ручка', 'Размер от центра'],
     ['⇧1', 'Вписать'], ['⇧2', 'Показать выделенное'], ['⌘ + колесо', 'Масштаб'], ['⌘\\', 'Скрыть панели']]],
   ['Блоки', [['← → ↑ ↓', 'Сдвиг по X / Y'], ['Alt ↑ ↓', 'Сдвиг по высоте'], ['⌘C · ⌘X · ⌘V', 'Копировать / вырезать / вставить'],
-    ['⌘D', 'Дублировать (повторяет последний сдвиг)'], ['⌫', 'Удалить'], ['⇧H · ⇧V', 'Отразить по X / Y'], ['⇧R', 'Повернуть на 90°'],
+    ['⌘D', 'Дублировать'], ['⌫', 'Удалить'], ['⇧H · ⇧V', 'Отразить по X / Y'], ['⇧R', 'Повернуть на 90°'],
     ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'], ['⇧⌘H', 'Скрыть'], ['⇧⌘L', 'Заблокировать']]],
   ['Слои и файл', [['Tab · ⇧Tab', 'Следующий / предыдущий слой'], ['Enter', 'Переименовать'], ['1 · 2', 'Дизайн / наведение'],
     ['⌘O', 'Открыть JSON'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть']]],
@@ -131,7 +137,7 @@ const KEYS: [string, [string, string][]][] = [
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   return (
-    <Dialog title="Горячие клавиши" onClose={onClose}>
+    <Dialog title="Горячие клавиши" onClose={onClose} wide>
       <div className="keys">
         {KEYS.map(([group, keys]) => (
           <dl key={group}>

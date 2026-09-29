@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 
 export type MenuItem =
   | { label: string; shortcut?: string; checked?: boolean; disabled?: boolean; danger?: boolean; onSelect: () => void }
+  | { heading: string }
   | 'separator';
 
 // A floating menu at a point: context menus and the file menu share it.
@@ -35,6 +36,7 @@ export function Menu({ x, y, items, onClose, header }: { x: number; y: number; i
       {header}
       {items.map((item, i) => item === 'separator'
         ? <hr key={i} />
+        : 'heading' in item ? <div key={i} className="menu-heading">{item.heading}</div>
         : <button key={i} disabled={item.disabled} className={item.danger ? 'is-danger' : undefined}
             onClick={() => { onClose(); item.onSelect(); }}>
             <span className="menu-check">{item.checked && <Check size={12} />}</span>

@@ -22,6 +22,7 @@ export function FileHeader({ editor, dark, onDark, onNew, onSeries, onAgent, onS
   const { current } = editor;
 
   const items: MenuItem[] = [
+    ...(Object.keys(editor.files).length ? [{ heading: 'Файлы' }] : []),
     ...Object.keys(editor.files).map(name => ({ label: name, checked: name === current, onSelect: () => editor.openFile(name) })),
     ...(Object.keys(editor.files).length ? ['separator' as const] : []),
     { label: 'Новый файл…', onSelect: onNew },

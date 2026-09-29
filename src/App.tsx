@@ -9,7 +9,6 @@ import { FileHeader } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
 import { PanelResizer } from './ui/PanelResizer';
 import { PropertiesPanel } from './ui/PropertiesPanel';
-import { Toolbar } from './ui/Toolbar';
 import { Tooltip } from './ui/Tooltip';
 
 type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | 'delete' | null;
@@ -152,7 +151,6 @@ export function App() {
 
       <main className="stage">
         <Canvas editor={editor} />
-        {scene && <Toolbar editor={editor} />}
         {editor.message && <div className="toast" role="status" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
         {external && <div className="toast toast-action" role="status">
           {external.created

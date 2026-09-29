@@ -2,12 +2,12 @@ import { useRef, useState } from 'react';
 import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround,
-  Download, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw,
+  Download, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Timer,
 } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import { downloadJson, downloadPng, downloadSvg } from '../download';
 import type { Editor } from '../editor';
-import { hoverBox, pick, type Box, type BoxKey, type Piece } from '../model';
+import { hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
 import { NumberField } from './NumberField';
 import { Timeline } from './Timeline';
 
@@ -45,12 +45,14 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
       {resizer}
       <div className="tabs" role="tablist">
         <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')} data-tip="Дизайн" data-kbd="1">Дизайн</button>
-        <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')} data-tip="Состояние при наведении" data-kbd="2">Наведение</button>
+        <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')} data-tip="Состояние при наведении" data-kbd="2">
+          Наведение{scene.objects.some(p => hoverKind(p) !== 'rest') && <i className="tab-dot" />}
+        </button>
       </div>
-      <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}
+      {scene.objects.length > 0 && <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}
         data-tip={pinned ? 'Отпустить наведение' : 'Наведите, чтобы проиграть; клик закрепляет'}>
         <CardPreview scene={scene} hold={pinned || playing !== null} />
-      </div>
+      </div>}
 
       {hover && (
         <section>
@@ -58,7 +60,7 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
             <button aria-pressed={scene.motion === 'mechanical'} data-tip="Детали ездят как настоящие: ящик выдвигается, тумблер переключается"
               onClick={() => scene.motion !== 'mechanical' && editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
             <button aria-pressed={scene.motion === 'layered'} data-tip="Схема раскрывается слоями и собирается при появлении"
-              onClick={() => scene.motion !== 'layered' && editor.change(s => ({ ...s, motion: 'layered' }))}>Слои</button>
+              onClick={() => scene.motion !== 'layered' && editor.change(s => ({ ...s, motion: 'layered' }))}>Раскрытие</button>
           </div>
         </section>
       )}
@@ -115,9 +117,9 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
 
       {hover && selected.length > 0 && (
         <section>
-          <h3>Задержка</h3>
+          <h3>Задержка, с</h3>
           <div className="fields">
-            <NumberField label="с" tip="Секунды до начала движения" value={common(p => p.delay ?? 0)} step={.02} min={0}
+            <NumberField label={<Timer size={12} />} tip="Секунды до начала движения" value={common(p => p.delay ?? 0)} step={.02} min={0}
               onCommit={v => setDelay(v)} onScrubStart={editor.checkpoint} onScrub={v => setDelay(v, false)} />
             <button className="icon" aria-label="Убрать наведение" data-tip="Убрать наведение" disabled={!selected.some(p => p.hover)}
               onClick={() => editor.clearHover(ids)}>
