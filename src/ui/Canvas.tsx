@@ -369,9 +369,9 @@ export function Canvas({ editor }: { editor: Editor }) {
         <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>
           {faces({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 }).map(f => <path key={f.kind} d={path(f.points)} />)}
         </svg>
-        <div className="ideas" onPointerDown={e => e.stopPropagation()}>
+        {!editor.aiOpen && <div className="ideas" onPointerDown={e => e.stopPropagation()}>
           {STARTERS.map(s => <button key={s} className="idea" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</button>)}
-        </div>
+        </div>}
       </div>}
       <Navigator view={view} size={size} boxes={boxes} onView={setView} onFit={() => fitView()} onZoom={f => zoomAt(f)} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
