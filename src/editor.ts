@@ -60,7 +60,14 @@ export function useEditor() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   // In-editor generation: its steps, and the file it writes to while running.
-  const [job, setJob] = useState<{ file: string; steps: Step[]; running: boolean; result?: string; error?: string } | null>(null);
+  const [job, setJob] = useState<{ file: string; prompt: string; steps: Step[]; running: boolean; result?: string; error?: string } | null>(null);
+  // The conversation with Claude per file: finished exchanges, and the
+  // Claude Code session that follow-ups continue (kept across reloads).
+  const [threads, setThreads] = useState<Record<string, { prompt: string; result?: string; error?: string }[]>>({});
+  const sessions = useRef<Record<string, string>>((() => { try { return JSON.parse(localStorage.getItem('isoform:sessions') ?? '{}'); } catch { return {}; } })());
+  const saveSessions = () => { try { localStorage.setItem('isoform:sessions', JSON.stringify(sessions.current)); } catch { /* private mode */ } };
+  // The block Claude is writing right now, outlined on the canvas.
+  const [live, setLive] = useState<string | null>(null);
   const running = useRef<{ file: string; abort: AbortController } | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const lastDuplicate = useRef<{ file: string | null; from: string[]; to: string[] } | null>(null);
@@ -484,32 +491,52 @@ export function useEditor() {
     change(s => ({ ...s }), true);
     // Local runs write through disk; flush first so the agent reads what you see.
     if (engine === 'local') await flush();
-    setJob({ file, steps: [], running: true });
+    setJob({ file, prompt, steps: [], running: true });
     const progress = (step: Step) => setJob(j => j && { ...j, steps: [...j.steps.filter(s => s.kind !== step.kind || step.kind === 'tool').slice(-6), step] });
-    const draft = (next: Scene) => {
+    const draft = (next: Scene, final: boolean) => {
       if (cur.current !== file) return;
+      // Claude Code writes the file itself: its drafts are only shown, never saved over it.
+      if (engine === 'api' || final) dirty.current.add(file!);
+      const before = latest.current[file!];
+      const fresh = next.objects.filter(p => !before?.objects.some(o => o.id === p.id && JSON.stringify(o) === JSON.stringify(p)));
+      if (fresh.length) setLive(fresh.at(-1)!.id);
       latest.current = { ...latest.current, [file!]: next };
-      dirty.current.add(file!);
       setFiles(latest.current);
     };
     try {
-      const job = { prompt, file, scene, selection, signal: abort.signal, progress, draft };
+      const job = { prompt, file, scene, selection, signal: abort.signal, progress, draft,
+        session: sessions.current[file], onSession: (id: string) => { sessions.current[file!] = id; saveSessions(); } };
       const result = engine === 'local' ? await runWithClaudeCode(job) : await runWithApi(job, key);
       setJob(j => j && { ...j, running: false, result });
+      setThreads(t => ({ ...t, [file!]: [...t[file!] ?? [], { prompt, result }] }));
     } catch (error) {
       const aborted = abort.signal.aborted;
-      setJob(j => j && { ...j, running: false, error: aborted ? undefined : (error as Error).message, result: aborted ? 'Остановлено' : undefined });
+      const outcome = { error: aborted ? undefined : (error as Error).message, result: aborted ? 'Остановлено' : undefined };
+      setJob(j => j && { ...j, running: false, ...outcome });
+      setThreads(t => ({ ...t, [file!]: [...t[file!] ?? [], { prompt, ...outcome }] }));
+      // A session Claude Code no longer knows starts over next time.
+      if (/session|сесси/i.test(outcome.error ?? '')) { delete sessions.current[file!]; saveSessions(); }
     } finally {
       running.current = null;
+      setLive(null);
       // A run that changed nothing leaves no empty undo step behind.
       const h = track(file);
       if (h.past.length && formatScene(h.past.at(-1)!.scene) === formatScene(latest.current[file] ?? blank())) h.past.pop();
     }
   };
   const stopGenerating = () => running.current?.abort.abort();
+  // Forget the conversation for the open file: the next message starts afresh.
+  const newConversation = () => {
+    const file = cur.current;
+    if (!file || running.current) return;
+    delete sessions.current[file]; saveSessions();
+    setThreads(t => ({ ...t, [file]: [] }));
+    setJob(null);
+  };
 
   return {
-    job, generate, stopGenerating, dismissJob: () => setJob(null), aiOpen, setAiOpen,
+    job, generate, stopGenerating, dismissJob: () => setJob(null), aiOpen, setAiOpen, live, newConversation,
+    thread: current ? threads[current] ?? [] : [], hasSession: !!(current && sessions.current[current]),
     files, templates, loaded, local, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,

@@ -38,7 +38,7 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
           <span>Описать словами</span>
         </button>
         {Object.entries(editor.templates).map(([name, scene]) => (
-          <button key={name} className="tile" onClick={() => create(name)} data-tip={name}>
+          <button key={name} className="tile" onClick={() => create(name)}>
             <div className="tile-art"><CardPreview scene={scene} /></div>
             <span>{scene.title}</span>
           </button>
@@ -53,7 +53,7 @@ export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () 
   const [hold, setHold] = useState(false);
   // Your files first (the open one marked), then the site's scenes.
   const tile = (key: string, name: string, scene: Scene, current = false, open?: () => void) => (
-    <button key={key} className={`tile${current ? ' is-current' : ''}`} data-tip={scene.title} onClick={open} disabled={!open}>
+    <button key={key} className={`tile${current ? ' is-current' : ''}`} onClick={open} disabled={!open}>
       <div className="tile-art">{scene.objects.length ? <CardPreview scene={scene} hold={hold} /> : <div className="tile-blank"><Box size={20} /></div>}</div>
       <span>{name}</span>
     </button>

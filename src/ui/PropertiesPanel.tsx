@@ -6,12 +6,11 @@ import {
 } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
-import { BOX_KEYS, hoverBox, hoverKind, pick, PLATE, type Box, type BoxKey, type Piece } from '../model';
+import { BOX_KEYS, hoverBox, pick, type Box, type BoxKey, type Piece } from '../model';
 import { NumberField } from './NumberField';
 import { Timeline } from './Timeline';
 
 const FIELDS: [BoxKey, string][] = [['x', 'X'], ['y', 'Y'], ['z', 'Z'], ['w', 'W'], ['d', 'D'], ['h', 'H']];
-const TIP: Record<BoxKey, string> = { x: 'X — тяните, чтобы менять', y: 'Y — тяните, чтобы менять', z: 'Высота над полом', w: 'Ширина', d: 'Глубина', h: 'Высота' };
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
 const fmt = (v: number) => String(+v.toFixed(2));
 
@@ -44,22 +43,21 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
     <aside className="panel right surface">
       <div className={`tabs${hover ? ' is-second' : ''}`} role="tablist">
         <i className="tabs-pill" />
-        <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')} data-tip="Дизайн" data-kbd="1">Дизайн</button>
-        <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')} data-tip="Состояние при наведении" data-kbd="2">
-          Наведение{scene.objects.some(p => hoverKind(p) !== 'rest') && <i className="tab-dot" />}
+        <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')}>Дизайн</button>
+        <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')}>
+          Наведение
         </button>
       </div>
-      {scene.objects.length > 0 && <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}
-        data-tip={pinned ? 'Отпустить наведение' : 'Наведите, чтобы проиграть; клик закрепляет'}>
+      {scene.objects.length > 0 && <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}>
         <CardPreview scene={scene} hold={pinned || playing !== null} />
       </div>}
 
       {hover && (
         <section>
           <div className="segmented wide">
-            <button aria-pressed={scene.motion === 'mechanical'} data-tip="Детали ездят как настоящие: ящик выдвигается, тумблер переключается"
+            <button aria-pressed={scene.motion === 'mechanical'}
               onClick={() => scene.motion !== 'mechanical' && editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
-            <button aria-pressed={scene.motion === 'layered'} data-tip="Схема раскрывается слоями и собирается при появлении"
+            <button aria-pressed={scene.motion === 'layered'}
               onClick={() => scene.motion !== 'layered' && editor.change(s => ({ ...s, motion: 'layered' }))}>Раскрытие</button>
           </div>
         </section>
@@ -93,14 +91,13 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         <section className="block-head">
           <div className="block-name">
             <h3>{selected.length === 1 ? selected[0].id : `${selected.length} ${plural(selected.length)}`}</h3>
-            <span>{describe(selected)}</span>
           </div>
           {hover && selected.length === 1 && diff(selected[0]).map(([k, from, to]) => (
             <div key={k} className="diff"><b>{k.toUpperCase()}</b><s>{fmt(from)}</s><ArrowRight size={14} /><em>{fmt(to)}</em><span>{to > from ? '+' : '−'}{fmt(Math.abs(to - from))}</span></div>
           ))}
           <div className="fields">
             {FIELDS.map(([k, label]) => (
-              <NumberField key={k} label={label} tip={TIP[k]} value={common(p => boxOf(p)[k])}
+              <NumberField key={k} label={label} value={common(p => boxOf(p)[k])}
                 min={'wdh'.includes(k) ? .5 : undefined}
                 accent={hover && selected.some(p => p.hover?.[k] !== undefined && p.hover[k] !== p[k])}
                 onCommit={v => editor.updatePieces(ids, () => ({ [k]: v }))}
@@ -158,7 +155,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
       {!hover && selected.length === 0 && (
         <section>
           <h3>Название</h3>
-          <input className="text" value={scene.title} data-tip="Подпись для экранных читалок и <title> в SVG"
+          <input className="text" value={scene.title}
             onFocus={() => { titleEdit.current = false; }}
             onChange={e => {
               const title = e.target.value;
@@ -171,18 +168,6 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
 
     </aside>
   );
-}
-
-// What a block is, in a word or two, for the panel's heading.
-function describe(pieces: Piece[]) {
-  if (pieces.length > 1) {
-    const moving = pieces.filter(p => hoverKind(p) !== 'rest').length;
-    return moving ? `${moving} с наведением` : 'Без наведения';
-  }
-  const p = pieces[0], kind = hoverKind(p);
-  const what = p.h <= PLATE + 4 ? 'Плита' : 'Блок';
-  if (p.locked) return `${what} · заблокирован`;
-  return kind === 'move' ? `${what} · едет при наведении` : kind === 'morph' ? `${what} · меняет форму при наведении` : what;
 }
 
 // The values hover changes, rest → hover.

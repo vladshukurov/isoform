@@ -33,7 +33,7 @@ export function NumberField({ label, tip, value, step = 2, min, accent, onCommit
 
   return (
     <label className={`num${accent ? ' is-accent' : ''}`}>
-      <span className="num-label" data-tip={tip}
+      <span className="num-label"
         onPointerDown={e => {
           if (value === undefined || !onScrub) return;
           e.preventDefault();

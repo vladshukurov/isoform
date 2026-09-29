@@ -4,7 +4,6 @@ import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
 import { Canvas } from './ui/Canvas';
-import { AgentsCard, AgentsDialog } from './ui/Agents';
 import { ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
 import { Dock } from './ui/Dock';
 import { FileHeader, TopActions } from './ui/FileHeader';
@@ -12,7 +11,7 @@ import { LayersPanel } from './ui/LayersPanel';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Tooltip } from './ui/Tooltip';
 
-type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | 'delete' | null;
+type Dialog = 'new' | 'series' | 'shortcuts' | 'delete' | null;
 const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select');
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
 const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
@@ -130,7 +129,6 @@ export function App() {
   // With no files yet the app opens on the new-file picker.
   const empty = editor.loaded && !editor.current;
 
-  const count = scene?.objects.length ?? 0;
   return (
     <div className={`app${chrome ? '' : ' is-bare'}`}
       onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } }}
@@ -143,25 +141,23 @@ export function App() {
       {/* Everything else floats over the canvas. */}
       <div className="chrome">
         <FileHeader editor={editor} dark={dark} onDark={() => setDark(d => !d)}
-          onNew={() => setDialog('new')} onSeries={() => setDialog('series')} onAgent={() => setDialog('agent')}
+          onNew={() => setDialog('new')} onSeries={() => setDialog('series')}
           onShortcuts={() => setDialog('shortcuts')} onImport={() => picker.current?.click()} onDelete={() => setDialog('delete')} />
-        <TopActions editor={editor} dark={dark} onDark={() => setDark(d => !d)} onAgent={() => setDialog('agent')} />
+        <TopActions editor={editor} dark={dark} onDark={() => setDark(d => !d)} />
 
         {scene && <aside className="panel left surface">
           <div className="panel-title">
             <h3>Слои</h3>
-            <span className="panel-count">{String(count).padStart(2, '0')}</span>
             <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={14} /></button>
           </div>
           <LayersPanel editor={editor} />
-          <AgentsCard editor={editor} onSetup={() => setDialog('agent')} />
         </aside>}
 
         <PropertiesPanel editor={editor} />
 
         {scene && <div className="history surface">
-          <button className="icon" aria-label="Отменить" data-tip="Отменить" data-kbd="⌘Z" onClick={editor.undo}><Undo2 size={17} /></button>
-          <button className="icon" aria-label="Вернуть" data-tip="Вернуть" data-kbd="⇧⌘Z" onClick={editor.redo}><Redo2 size={17} /></button>
+          <button className="icon" aria-label="Отменить" onClick={editor.undo}><Undo2 size={17} /></button>
+          <button className="icon" aria-label="Вернуть" onClick={editor.redo}><Redo2 size={17} /></button>
         </div>}
         {scene && <Dock editor={editor} />}
 
@@ -183,7 +179,6 @@ export function App() {
         <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)}
           onAgent={() => { editor.createFile(); setDialog(null); editor.setAiOpen(true); }} />}
       {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
-      {dialog === 'agent' && <AgentsDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"
         onConfirm={editor.deleteFile} onClose={() => setDialog(null)} />}

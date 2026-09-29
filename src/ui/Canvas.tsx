@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Box as BoxIcon, Minus, Plus } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import { Art } from '../Art';
 import type { Editor } from '../editor';
 import { AXIS, outline, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
@@ -319,11 +319,6 @@ export function Canvas({ editor }: { editor: Editor }) {
       onPointerDown={backgroundDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
       onContextMenu={contextMenu}>
       <svg width={size.w} height={size.h} className={`iso-art workspace${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
-        <defs>
-          <linearGradient id="agent-ink" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#FF8A4C" /><stop offset=".5" stopColor="#FF4FA3" /><stop offset="1" stopColor="#8E6BFF" />
-          </linearGradient>
-        </defs>
         <g transform={`translate(${view.ox} ${view.oy}) scale(${view.s})`}>
           <path className="grid" d={grid.join(' ')} />
           {[...selected.map(boxOf), ...(draft ? [draft] : [])].map((b, i) => {
@@ -343,6 +338,9 @@ export function Canvas({ editor }: { editor: Editor }) {
           {hovered && !selection.includes(hovered) && objects.find(p => p.id === hovered) &&
             <path className="hover-outline" d={outline(boxOf(objects.find(p => p.id === hovered)!))} />}
           {selected.map(p => <path key={p.id} className="select-outline" d={outline(boxOf(p))} />)}
+          {/* The block Claude is writing right now. */}
+          {editor.live && objects.find(p => p.id === editor.live) &&
+            <path key={editor.live} className="live-outline" d={outline(boxOf(objects.find(p => p.id === editor.live)!))} />}
           {/* Blocks an agent just changed flash once. */}
           {editor.external?.name === editor.current && objects.filter(p => editor.external!.ids.includes(p.id)).map(p =>
             <path key={`${p.id}-${editor.external!.at}`} className="flash-outline" d={outline(boxOf(p))} />)}
@@ -366,7 +364,13 @@ export function Canvas({ editor }: { editor: Editor }) {
       </svg>
       {mode === 'hover' && <div className="mode-chip"><i />Состояние при наведении</div>}
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
-      {!objects.length && tool === 'move' && <div className="canvas-empty"><BoxIcon size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>}
+      {!objects.length && tool === 'move' && !editor.job?.running && <div className="canvas-empty">
+        <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>
+          <path d={outline({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 })} />
+        </svg>
+        <b>Пустая сцена</b>
+        <span><kbd>B</kbd> — нарисовать блок · <kbd>⌘K</kbd> — описать словами</span>
+      </div>}
       <Navigator view={view} size={size} boxes={boxes} onView={setView} onFit={() => fitView()} onZoom={f => zoomAt(f)} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </div>
@@ -403,9 +407,9 @@ function Navigator({ view, size, boxes, onView, onFit, onZoom }: {
         <rect className="minimap-port" x={ox + port.x0 * k} y={oy + port.y0 * k} width={(port.x1 - port.x0) * k} height={(port.y1 - port.y0) * k} rx="4" />
       </svg>
       <div className="zoom-row">
-        <button className="icon" aria-label="Отдалить" data-tip="Отдалить" data-kbd="⌘−" onClick={() => onZoom(.8)}><Minus size={14} /></button>
+        <button className="icon" aria-label="Отдалить" onClick={() => onZoom(.8)}><Minus size={14} /></button>
         <button className="zoom" onClick={onFit} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
-        <button className="icon" aria-label="Приблизить" data-tip="Приблизить" data-kbd="⌘+" onClick={() => onZoom(1.25)}><Plus size={14} /></button>
+        <button className="icon" aria-label="Приблизить" onClick={() => onZoom(1.25)}><Plus size={14} /></button>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { basename, dirname } from 'node:path';
-import { claudeCli, runAgent } from './agent';
+import { claudeCli, finishLogin, runAgent, startLogin } from './agent';
 import { deleteFile, dirs, list, readFile, renameFile, root, saveFile, validName } from './files';
 
 const body = (req: IncomingMessage) => new Promise<unknown>((ok, fail) => {
@@ -48,6 +48,8 @@ export function scenesApi(): Plugin {
             server.ws.send({ type: 'custom', event: 'isoform:mcp', data: lastMcp });
             return send(res, 200, { ok: true });
           }
+          if (kind === 'agent' && name === 'login' && req.method === 'POST') return send(res, 200, await startLogin());
+          if (kind === 'agent' && name === 'code' && req.method === 'POST') return send(res, 200, await finishLogin(String(((await body(req)) as { code?: unknown } | undefined)?.code ?? '')));
           if (kind === 'agent' && req.method === 'GET') { const cli = claudeCli(); return send(res, 200, { available: !!cli, loggedIn: !!cli?.loggedIn, version: cli?.version }); }
           if (kind === 'agent' && req.method === 'POST') return await runAgent(req, res, ((await body(req)) ?? {}) as Record<string, unknown>);
           if (kind === 'files' && name) {

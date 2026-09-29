@@ -20,7 +20,7 @@ export function Tooltip() {
       if (!el) return;
       current = el;
       const show = () => setTip({ text: el.getAttribute('data-tip')!, kbd: el.getAttribute('data-kbd') ?? undefined, rect: el.getBoundingClientRect() });
-      if (performance.now() < warmUntil) show(); else timer = window.setTimeout(show, 550);
+      if (performance.now() < warmUntil) show(); else timer = window.setTimeout(show, 700);
     };
     window.addEventListener('pointerover', over);
     window.addEventListener('pointerdown', hide, true);

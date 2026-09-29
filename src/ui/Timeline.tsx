@@ -46,7 +46,6 @@ export function Timeline({ editor, onPlay, playing }: { editor: Editor; onPlay: 
             <span className="timeline-name">{p.id}</span>
             <div className="timeline-track">
               <div className="timeline-bar" style={{ left: pct(p.delay ?? 0), width: pct(ENTER) }}
-                data-tip={`${(p.delay ?? 0).toFixed(2)} с`}
                 onClick={e => e.stopPropagation()}
                 onPointerDown={e => {
                   e.stopPropagation();

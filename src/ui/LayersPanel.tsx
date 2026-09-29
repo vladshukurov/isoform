@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, TriangleAlert } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, TriangleAlert } from 'lucide-react';
+import { Glyph } from './Glyph';
 import { ENTER } from '../anim';
 import type { Editor } from '../editor';
-import { hoverKind, PLATE, type Piece } from '../model';
+import { hoverKind, type Piece } from '../model';
 import { overlaps } from '../review';
 import { pieceMenu } from './actions';
 import { Menu, type MenuItem } from './Menu';
@@ -43,7 +44,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
     editor.moveBefore(ids, before);
   };
 
-  if (!list.length) return <div className="layers" />;
+  if (!list.length) return <div className="layers"><div className="layers-empty"><span>Пока пусто</span></div></div>;
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
       {list.map((p, i) => {
@@ -76,7 +77,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
             onDragLeave={() => setDrop(d => d?.id === p.id ? null : d)}
             onDrop={e => { e.preventDefault(); if (drop) place(drop); setDrop(null); dragging.current = []; }}
             onDragEnd={() => { setDrop(null); dragging.current = []; }}>
-            <span className="layer-icon">{p.h <= PLATE + 4 ? <Layers2 size={16} /> : <Box size={16} />}</span>
+            <span className="layer-icon"><Glyph box={p} /></span>
             {editing === p.id
               ? <input className="layer-name" autoFocus defaultValue={p.id}
                   onClick={e => e.stopPropagation()}
@@ -90,7 +91,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
               : <span className="layer-name">{p.id}</span>}
             <span className="layer-status">
               {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={14} /></span>}
-              {kind !== 'rest' && <span className="layer-track" data-tip={`${kind === 'move' ? 'Едет' : 'Меняет форму'} при наведении · ${(p.delay ?? 0).toFixed(2)} с`}>
+              {kind !== 'rest' && editor.mode === 'hover' && <span className="layer-track">
                 <i style={{ left: `${(p.delay ?? 0) / total * 100}%`, width: `${ENTER / total * 100}%` }} />
               </span>}
             </span>

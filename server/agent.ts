@@ -32,12 +32,56 @@ export function claudeCli(): Cli | null {
   return cli;
 }
 
+// Signing in from the editor: `claude auth login` opens the browser; after
+// signing in the page shows a code, which the editor sends back here.
+let login: { child: ReturnType<typeof spawn>; url: string; done: Promise<void> } | null = null;
+export async function startLogin() {
+  const cli = claudeCli();
+  if (!cli) throw new Error('Claude Code не найден: установите его — npm install -g @anthropic-ai/claude-code');
+  if (login) login.child.kill('SIGTERM');
+  const child = spawn(cli.path, ['auth', 'login', '--claudeai'], { cwd: root, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const done = new Promise<void>(resolve => child.on('close', () => { cached = null; if (login?.child === child) login = null; resolve(); }));
+  const url = await new Promise<string>((resolve, reject) => {
+    let out = '';
+    const timer = setTimeout(() => reject(new Error('Claude Code не ответил')), 15000);
+    const read = (chunk: Buffer) => {
+      out += chunk.toString();
+      const found = out.match(/https:\/\/\S+/);
+      if (found) { clearTimeout(timer); resolve(found[0]); }
+    };
+    child.stdout!.on('data', read);
+    child.stderr!.on('data', read);
+    child.on('close', () => { clearTimeout(timer); reject(new Error(out.trim().split('\n').at(-1) || 'Вход не запустился')); });
+  });
+  login = { child, url, done };
+  return { url };
+}
+export async function finishLogin(code: string) {
+  if (!login) throw new Error('Сначала нажмите «Войти»');
+  const { child, done } = login;
+  child.stdin!.write(code.trim() + '\n');
+  // Wait for the CLI to trade the code for a token.
+  await Promise.race([done, new Promise(r => setTimeout(r, 20000))]);
+  if (child.exitCode === null) child.kill('SIGTERM');
+  cached = null;
+  const cli = claudeCli();
+  if (!cli?.loggedIn) throw new Error('Код не подошёл — попробуйте ещё раз');
+  return { loggedIn: true };
+}
+
 const TOOLS = ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash(npm run check:*)', 'Bash(npm run render:*)', 'Bash(npm run scene:*)'];
 
-function promptFor({ file, prompt, selection, fresh }: { file: string; prompt: string; selection: string[]; fresh: boolean }) {
+function promptFor({ file, prompt, selection, fresh, followUp }: { file: string; prompt: string; selection: string[]; fresh: boolean; followUp: boolean }) {
+  if (followUp) return [
+    `Продолжаем: files/${file}.json, пользователь мог поправить его руками — перечитай перед правкой.`,
+    selection.length ? `Выделены блоки: ${selection.join(', ')}.` : '',
+    `Задача: ${prompt}`,
+    'Как и раньше: Write целиком, check и render, в конце одно-два предложения.',
+  ].filter(Boolean).join('\n');
   return [
-    `Работай по AGENTS.md. Файл сцены: files/${file}.json — он открыт в редакторе, пользователь видит каждое твоё сохранение.`,
+    `Работай по AGENTS.md. Файл сцены: files/${file}.json — он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`,
     fresh ? 'Файл пустой или новый: собери сцену с нуля.' : 'Правь этот файл, сохраняя то, что задача не затрагивает.',
+    'Сохраняй сцену инструментом Write целиком (не Edit), в формате редактора: каждый блок — одна строка вида {"id":"…","x":…}, в порядке отрисовки от дальних к ближним — блоки появляются на холсте по мере того, как ты их пишешь.',
     selection.length ? `Выделены блоки: ${selection.join(', ')} — задача про них.` : '',
     `Задача: ${prompt}`,
     `Перед концом: npm run check ${file}, npm run render ${file} и посмотри previews/${file}.png. Не спрашивай уточнений — реши сам. В конце одно-два предложения по-русски, что сделал.`,
@@ -55,14 +99,47 @@ function describe(block: { type: string; name?: string; input?: Record<string, u
   return { kind: 'tool', text: block.name ?? '' };
 }
 
-export async function runAgent(req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown }) {
+// The scene as far as a streaming Write has got: the file's text is a JSON
+// string inside the tool input, one block per line, so every complete line
+// is a block that can be shown already.
+export function partialScene(input: string, path: string) {
+  const at = input.indexOf('"content"');
+  if (at < 0 || !/"file_path"\s*:\s*"([^"]*)"/.exec(input)?.[1].endsWith(path)) return null;
+  const start = input.indexOf('"', input.indexOf(':', at) + 1);
+  if (start < 0) return null;
+  let text = '';
+  for (let i = start + 1; i < input.length; i++) {
+    const c = input[i];
+    if (c === '"') break;
+    if (c !== '\\') { text += c; continue; }
+    const e = input[i + 1];
+    if (e === undefined) break;
+    if (e === 'u') { if (i + 5 >= input.length) break; text += String.fromCharCode(parseInt(input.slice(i + 2, i + 6), 16)); i += 5; continue; }
+    text += ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' } as Record<string, string>)[e] ?? e;
+    i++;
+  }
+  const objects: unknown[] = [];
+  for (const line of text.split('\n').slice(0, -1)) {
+    const trimmed = line.trim().replace(/,$/, '');
+    if (!trimmed.startsWith('{"id"')) continue;
+    try { objects.push(JSON.parse(trimmed)); } catch { /* not a whole block */ }
+  }
+  const quoted = /"title"\s*:\s*("(?:[^"\\]|\\.)*")/.exec(text)?.[1];
+  const title = quoted ? JSON.parse(quoted) as string : undefined, motion = /"motion"\s*:\s*"(mechanical|layered)"/.exec(text)?.[1];
+  return { objects, title, motion };
+}
+
+export async function runAgent(req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
   const cli = claudeCli();
   if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
   if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
   if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
   const selection = Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [];
-  const args = ['-p', promptFor({ file: body.file, prompt: body.prompt, selection, fresh: body.fresh === true }),
-    '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(',')];
+  const session = typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null;
+  const file = body.file;
+  const args = ['-p', promptFor({ file, prompt: body.prompt, selection, fresh: body.fresh === true, followUp: !!session }),
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), ...(session ? ['--resume', session] : [])];
   const child = spawn(cli.path, args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
 
   res.statusCode = 200;
@@ -71,7 +148,9 @@ export async function runAgent(req: IncomingMessage, res: ServerResponse, body: 
   // Stopping in the editor aborts the request; the agent stops with it.
   req.on('close', () => { if (child.exitCode === null) child.kill('SIGTERM'); });
 
-  let buffer = '', errors = '';
+  let buffer = '', errors = '', sessionId = session;
+  // Tool input streaming in, per content block, and how many blocks were last shown.
+  const inputs = new Map<number, { name: string; json: string; shown: number }>();
   child.stdout.setEncoding('utf8').on('data', chunk => {
     buffer += chunk;
     let at: number;
@@ -80,8 +159,25 @@ export async function runAgent(req: IncomingMessage, res: ServerResponse, body: 
       buffer = buffer.slice(at + 1);
       try {
         const event = JSON.parse(line);
+        if (typeof event.session_id === 'string') sessionId = event.session_id;
+        if (event.type === 'stream_event') {
+          const e = event.event;
+          if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') inputs.set(e.index, { name: e.content_block.name, json: '', shown: -1 });
+          if (e?.type === 'content_block_delta' && e.delta?.type === 'input_json_delta') {
+            const block = inputs.get(e.index);
+            if (block?.name === 'Write') {
+              block.json += e.delta.partial_json;
+              const scene = partialScene(block.json, `files/${file}.json`);
+              if (scene && scene.objects.length !== block.shown) { block.shown = scene.objects.length; res.write(JSON.stringify({ kind: 'scene', ...scene }) + '\n'); }
+            }
+          }
+          continue;
+        }
         if (event.type === 'assistant') for (const block of event.message?.content ?? []) { const step = describe(block); if (step) send(step); }
-        if (event.type === 'result') send(event.is_error ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') } : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' ') });
+        if (event.type === 'result') {
+          if (sessionId) res.write(JSON.stringify({ kind: 'session', text: sessionId }) + '\n');
+          send(event.is_error ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') } : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' ') });
+        }
       } catch { /* a partial or non-JSON line */ }
     }
   });
