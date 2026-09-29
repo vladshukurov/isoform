@@ -3,12 +3,12 @@ import { evaluate } from '../expr';
 
 type Props = {
   label: ReactNode;
-  tip?: string;
   // undefined = mixed across the selection
   value: number | undefined;
   step?: number;
   min?: number;
   accent?: boolean;
+  disabled?: boolean;
   onCommit: (value: number) => void;
   // Scrubbing the label: one checkpoint at the start, then live values.
   onScrubStart?: () => void;
@@ -19,7 +19,7 @@ const round = (v: number) => +v.toFixed(3);
 
 // A Figma-style field: the label scrubs the value, the input takes numbers
 // or arithmetic ("120/2") and commits on Enter or blur, ↑↓ step it (Shift ×5).
-export function NumberField({ label, tip, value, step = 2, min, accent, onCommit, onScrubStart, onScrub }: Props) {
+export function NumberField({ label, value, step = 2, min, accent, disabled, onCommit, onScrubStart, onScrub }: Props) {
   const [text, setText] = useState(value === undefined ? '' : String(round(value)));
   const scrub = useRef<{ x: number; start: number; moved: boolean } | null>(null);
   useEffect(() => setText(value === undefined ? '' : String(round(value))), [value]);
@@ -32,10 +32,10 @@ export function NumberField({ label, tip, value, step = 2, min, accent, onCommit
   };
 
   return (
-    <label className={`num${accent ? ' is-accent' : ''}`}>
+    <label className={`num${accent ? ' is-accent' : ''}${disabled ? ' is-disabled' : ''}`}>
       <span className="num-label"
         onPointerDown={e => {
-          if (value === undefined || !onScrub) return;
+          if (value === undefined || !onScrub || disabled) return;
           e.preventDefault();
           e.currentTarget.setPointerCapture(e.pointerId);
           scrub.current = { x: e.clientX, start: value, moved: false };
@@ -51,7 +51,7 @@ export function NumberField({ label, tip, value, step = 2, min, accent, onCommit
         onPointerUp={() => { scrub.current = null; }}>
         {label}
       </span>
-      <input value={text} placeholder={value === undefined ? '—' : undefined} inputMode="decimal"
+      <input value={text} disabled={disabled} placeholder={value === undefined ? '—' : undefined} inputMode="decimal"
         onChange={e => setText(e.target.value)} onBlur={commit} onFocus={e => e.target.select()}
         onKeyDown={e => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

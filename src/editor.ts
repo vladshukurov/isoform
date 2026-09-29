@@ -64,7 +64,7 @@ export function useEditor() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   // In-editor generation: its steps, and the file it writes to while running.
-  const [job, setJob] = useState<{ file: string; prompt: string; steps: Step[]; running: boolean; result?: string; error?: string; changed?: boolean } | null>(null);
+  const [job, setJob] = useState<{ file: string; prompt: string; steps: Step[]; running: boolean; at: number; result?: string; error?: string; changed?: boolean } | null>(null);
   // Conversations with Claude, per file: each keeps its exchanges and the
   // Claude Code session its follow-ups continue; you can go back to any.
   // Kept in this browser across reloads.
@@ -510,8 +510,8 @@ export function useEditor() {
     if (running.current) return;
     running.current = { file, abort, engine };
     change(s => ({ ...s }), true);
-    setJob({ file, prompt, steps: [], running: true });
-    const progress = (step: Step) => setJob(j => j && { ...j, steps: [...j.steps.filter(s => s.kind !== step.kind || step.kind === 'tool').slice(-6), step] });
+    setJob({ file, prompt, steps: [], running: true, at: Date.now() });
+    const progress = (step: Step) => setJob(j => j && (j.steps.at(-1)?.text === step.text ? j : { ...j, steps: [...j.steps.slice(-5), step] }));
     const draft = (next: Scene, final: boolean) => {
       if (cur.current !== file) return;
       // Claude Code writes the file itself: its drafts are only shown, never saved over it.

@@ -27,7 +27,5 @@ export function pieceMenu(editor: Editor, ids: string[]): MenuItem[] {
     { label: hidden ? 'Показать' : 'Скрыть', shortcut: '⇧⌘H', onSelect: () => editor.toggle(ids, 'hidden') },
     { label: locked ? 'Разблокировать' : 'Заблокировать', shortcut: '⇧⌘L', onSelect: () => editor.toggle(ids, 'locked') },
     ...(pieces.some(p => hoverKind(p) !== 'rest') ? ['separator' as const, { label: 'Убрать наведение', onSelect: () => editor.clearHover(ids) }] : []),
-    'separator',
-    { label: 'Копировать для агента', onSelect: () => editor.copyForAgent(ids) },
   ];
 }

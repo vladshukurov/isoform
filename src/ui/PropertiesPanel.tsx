@@ -2,11 +2,11 @@ import { useRef, useState } from 'react';
 import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround,
-  ArrowDownToLine, ArrowRight, CopyPlus, Hash, MoveHorizontal, FlipHorizontal2, FlipVertical2, Proportions, RotateCcw, RotateCw, Timer,
+  ArrowDownToLine, ArrowRight, CopyPlus, Lock, FlipHorizontal2, FlipVertical2, Proportions, RotateCcw, RotateCw,
 } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
-import { BOX_KEYS, hoverBox, pick, type Box, type BoxKey, type Piece } from '../model';
+import { BOX_KEYS, hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
 import { NumberField } from './NumberField';
 import { Timeline } from './Timeline';
 
@@ -32,6 +32,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
     return values.every(v => v === values[0]) ? values[0] : undefined;
   };
   const ids = selected.map(p => p.id);
+  const allLocked = selected.length > 0 && selected.every(p => p.locked);
   const setDelay = (v: number, record = true) => editor.mapPieces(ids, p => ({ ...p, delay: v || undefined }), record);
   const play = (seconds: number) => {
     clearTimeout(playTimer.current);
@@ -92,12 +93,14 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
           <div className="block-name">
             <h3>{selected.length === 1 ? selected[0].id : `${selected.length} ${plural(selected.length)}`}</h3>
           </div>
+          {allLocked && <div className="locked-note"><Lock size={13} /><span>{selected.length === 1 ? 'Заблокирован' : 'Заблокированы'}</span>
+            <button className="chip-button" onClick={() => editor.toggle(ids, 'locked')}>Разблокировать</button></div>}
           {hover && selected.length === 1 && diff(selected[0]).map(([k, from, to]) => (
             <div key={k} className="diff"><b>{k.toUpperCase()}</b><s>{fmt(from)}</s><ArrowRight size={14} /><em>{fmt(to)}</em><span>{to > from ? '+' : '−'}{fmt(Math.abs(to - from))}</span></div>
           ))}
           <div className="fields">
             {FIELDS.map(([k, label]) => (
-              <NumberField key={k} label={label} value={common(p => boxOf(p)[k])}
+              <NumberField key={k} label={label} value={common(p => boxOf(p)[k])} disabled={allLocked}
                 min={'wdh'.includes(k) ? .5 : undefined}
                 accent={hover && selected.some(p => p.hover?.[k] !== undefined && p.hover[k] !== p[k])}
                 onCommit={v => editor.updatePieces(ids, () => ({ [k]: v }))}
@@ -108,7 +111,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         </section>
       )}
 
-      {!hover && selected.length > 0 && (
+      {!hover && selected.length > 0 && !allLocked && (
         <section className="transform">
           <div className="tool-row">
               <button className="icon" aria-label="На опору" data-tip="На опору" data-kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></button>
@@ -119,8 +122,8 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
             </div>
           {repeating && (
             <div className="repeat">
-              <NumberField label={<Hash size={12} />} tip="Сколько всего" value={rep.count} step={1} min={2} onCommit={count => setRep(r => ({ ...r, count: Math.round(count) }))} />
-              <NumberField label={<MoveHorizontal size={12} />} tip="Зазор" value={rep.gap} step={2} onCommit={gap => setRep(r => ({ ...r, gap }))} />
+              <NumberField label="×" value={rep.count} step={1} min={2} onCommit={count => setRep(r => ({ ...r, count: Math.round(count) }))} />
+              <NumberField label="↔" value={rep.gap} step={2} onCommit={gap => setRep(r => ({ ...r, gap }))} />
               <div className="segmented">
                 {(['x', 'y', 'z'] as const).map(axis => (
                   <button key={axis} aria-pressed={rep.axis === axis} onClick={() => setRep(r => ({ ...r, axis }))}>{axis.toUpperCase()}</button>
@@ -144,13 +147,16 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
               style={{ '--v': `${(common(p => p.delay ?? 0) ?? 0) * 100}%` } as React.CSSProperties}
               onPointerDown={editor.checkpoint}
               onChange={e => setDelay(+e.target.value, false)} />
-            <NumberField label={<Timer size={12} />} tip="Секунды до начала движения" value={common(p => p.delay ?? 0)} step={.02} min={0}
+            <NumberField label="с" value={common(p => p.delay ?? 0)} step={.02} min={0}
               onCommit={v => setDelay(v)} onScrubStart={editor.checkpoint} onScrub={v => setDelay(v, false)} />
           </div>
         </section>
       )}
 
       {hover && <Timeline editor={editor} onPlay={play} playing={playing} />}
+      {hover && !selected.length && !scene.objects.some(p => hoverKind(p) !== 'rest') && (
+        <section><p className="panel-hint">Пока ничего не двигается. Выделите блок и поменяйте его размер или положение здесь — так он будет выглядеть при наведении.</p></section>
+      )}
 
       {!hover && selected.length === 0 && (
         <section>

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Box, Check, Copy, Plus, Sparkles, X } from 'lucide-react';
+import { Box, Check, Copy, Plus, X } from 'lucide-react';
+import { ClaudeMark } from './ClaudeMark';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import type { Scene } from '../model';
@@ -34,8 +35,8 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
           <span>Пустой</span>
         </button>
         <button className="tile" onClick={onAgent}>
-          <div className="tile-art tile-blank tile-agent"><Sparkles size={20} /></div>
-          <span>Описать словами</span>
+          <div className="tile-art tile-blank tile-agent"><ClaudeMark size={22} /></div>
+          <span>Собрать с Claude</span>
         </button>
         {Object.entries(editor.templates).map(([name, scene]) => (
           <button key={name} className="tile" onClick={() => create(name)}>

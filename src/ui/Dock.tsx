@@ -86,12 +86,29 @@ export function Dock({ editor }: { editor: Editor }) {
   const ready = chosen === 'api' ? !!key : !!local?.loggedIn;
   const running = !!job?.running;
   const signingIn = login.phase !== 'idle';
-  const send = () => {
-    const text = prompt.trim();
-    if (!text || running || !ready) return;
-    editor.generate(text, chosen, key);
+  const ask = (text: string) => {
+    if (!text.trim() || running || !ready) return;
+    editor.generate(text.trim(), chosen, key);
     setPrompt('');
   };
+  const send = () => ask(prompt);
+  // Ideas elsewhere (the empty canvas) ask Claude through the same line.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail;
+      setFocused(true);
+      if (ready) ask(text); else { setPrompt(text); input.current?.focus(); }
+    };
+    window.addEventListener('isoform:ask', onAsk);
+    return () => window.removeEventListener('isoform:ask', onAsk);
+  });
+  // A second hand for the running timer.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [running]);
   // The CLI opens the browser itself; the link is there if it didn't.
   const signIn = async () => {
     setLogin({ phase: 'opening' });
@@ -153,7 +170,7 @@ export function Dock({ editor }: { editor: Editor }) {
                   ? <span className="thread-title"><ClaudeMark size={13} />Claude</span>
                   : <button className="thread-title" disabled={running || !editor.talks.length} onMouseDown={e => e.preventDefault()}
                       onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTalkMenu({ x: r.left, y: r.top - 6 }); }}>
-                      <ClaudeMark size={13} /><span>{editor.talk?.title ?? 'Новый разговор'}</span>{editor.talks.length > 0 && <ChevronDown size={12} />}
+                      <ClaudeMark size={13} /><span>{editor.talks.length > 1 || !editor.talk ? editor.talk?.title ?? 'Новый разговор' : 'Claude'}</span>{editor.talks.length > 0 && <ChevronDown size={12} />}
                     </button>}
                 <button className="dock-engine" onMouseDown={e => e.preventDefault()} onClick={openEngines} disabled={running}>{engineLabel}<ChevronDown size={12} /></button>
                 {!setup && <button className="icon" aria-label="Новый разговор" data-tip="Новый разговор" disabled={running || !editor.talk}
@@ -203,7 +220,10 @@ export function Dock({ editor }: { editor: Editor }) {
                 )
               ) : (
                 <div className="thread" ref={log} aria-live="polite">
-                  {!talk && <p className="thread-empty">Claude видит сцену и выделенные блоки. Напишите, что собрать или поправить.</p>}
+                  {!talk && <div className="thread-empty">
+                    <p>Claude видит сцену и выделенные блоки. Напишите, что собрать или поправить, — или начните с идеи:</p>
+                    <div className="ideas">{examples.slice(0, 3).map(x => <button key={x} className="idea" onMouseDown={e => e.preventDefault()} onClick={() => ask(x)}>{x}</button>)}</div>
+                  </div>}
                   {thread.slice(0, last ? -1 : undefined).slice(-6).map((t, i) => (
                     <div key={i} className="turn">
                       <p className="turn-you">{t.prompt}</p>
@@ -214,9 +234,10 @@ export function Dock({ editor }: { editor: Editor }) {
                     <div className="turn is-current">
                       <p className="turn-you">{job.prompt}</p>
                       {job.running
-                        ? <div className="turn-steps">
-                            {job.steps.slice(-3).map((s, i, all) => <p key={i} className={i === all.length - 1 ? 'is-live' : ''}>{s.text}</p>)}
-                            {!job.steps.length && <p className="is-live">Читает сцену</p>}
+                        ? <div className="turn-live">
+                            <i className="live-dot" />
+                            <span key={job.steps.length}>{job.steps.filter(s => s.kind !== 'text').at(-1)?.text ?? 'Начинает'}</span>
+                            <em>{Math.max(0, Math.round((now - job.at) / 1000))}\u202Fс</em>
                           </div>
                         : job.error
                           ? <div className="turn-end"><p className="turn-error">{job.error}</p>

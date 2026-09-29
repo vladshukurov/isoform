@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEven
 import { Minus, Plus } from 'lucide-react';
 import { Art } from '../Art';
 import type { Editor } from '../editor';
-import { AXIS, outline, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
+import { AXIS, faces, outline, path, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
 import { GAP, GROUND, hoverBox, hoverKind, pick, PLATE, SNAP, type Box } from '../model';
 import { bounds, snapMove, snapPoint, snapSize, type Guide } from '../snap';
 import { pieceMenu } from './actions';
@@ -26,6 +26,7 @@ const fmt = (v: number) => String(+v.toFixed(2));
 // Smart guides pull within this many screen pixels; hold ⌘ to place freely.
 const PULL = 6;
 const dialogOpen = () => !!document.querySelector('.backdrop');
+const STARTERS = ['Сейф с дверцей, которая приоткрывается', 'Стопка карточек доступа', 'Сервер с дисками, которые выдвигаются волной'];
 // The canvas under the floating chrome: panels at the sides, the dock below.
 const safeArea = ({ w, h }: { w: number; h: number }) => {
   const l = w > 1000 ? 280 : w > 760 ? 240 : 16, r = w > 1000 ? 312 : w > 760 ? 272 : 16, t = 72, b = 104;
@@ -366,10 +367,13 @@ export function Canvas({ editor }: { editor: Editor }) {
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
       {!objects.length && tool === 'move' && !editor.job?.running && <div className="canvas-empty">
         <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>
-          <path d={outline({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 })} />
+          {faces({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 }).map(f => <path key={f.kind} d={path(f.points)} />)}
         </svg>
         <b>Пустая сцена</b>
-        <span><kbd>B</kbd> — нарисовать блок · <kbd>⌘K</kbd> — описать словами</span>
+        <span><kbd>B</kbd> — нарисовать блок руками, или попросите Claude:</span>
+        <div className="ideas" onPointerDown={e => e.stopPropagation()}>
+          {STARTERS.map(s => <button key={s} className="idea" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</button>)}
+        </div>
       </div>}
       <Navigator view={view} size={size} boxes={boxes} onView={setView} onFit={() => fitView()} onZoom={f => zoomAt(f)} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
