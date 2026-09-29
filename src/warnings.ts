@@ -1,6 +1,6 @@
 // What looks off but may be intended: printed by npm run check with "!",
 // never fails it. The eight templates pass clean, keep it that way.
-import { GAP, GROUND, hoverBox, type Box, type Scene } from '../src/model';
+import { GAP, GROUND, hoverBox, type Box, type Scene } from './model';
 
 const LIMIT = 250, MAX_DELAY = .6, MAX_BLOCKS = 24;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;

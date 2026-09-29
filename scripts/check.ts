@@ -6,7 +6,7 @@
 import { fit } from '../src/geometry';
 import { review } from '../src/review';
 import { load, targets } from './scenes';
-import { warnings } from './warnings';
+import { warnings } from '../src/warnings';
 
 let failed = false;
 for (const target of targets(process.argv.slice(2))) {

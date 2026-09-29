@@ -44,3 +44,14 @@ describe('stagger', () => {
   it('steps delays in painter order', () =>
     expect([...stagger([block('a', 0), block('b', 0), block('c', 0)], .05).values()]).toEqual([0, .05, .1]));
 });
+
+describe('repeat and drop', async () => {
+  const { repeatOffsets, dropHeight } = await import('../src/ops');
+  it('steps copies by the group size plus the gap', () =>
+    expect(repeatOffsets([block('a', 0), block('b', 50)], 'x', 3, 10)).toEqual([{ x: 100, y: 0, z: 0 }, { x: 200, y: 0, z: 0 }]));
+  it('drops onto the highest top below, or the ground', () => {
+    const lid = { x: 0, y: 0, z: 200, w: 40, d: 40, h: 8 };
+    expect(dropHeight(lid, [{ x: 10, y: 10, z: GROUND, w: 20, d: 20, h: 60 }, { x: 100, y: 0, z: GROUND, w: 40, d: 40, h: 150 }], GROUND)).toBe(GROUND + 60);
+    expect(dropHeight(lid, [], GROUND)).toBe(GROUND);
+  });
+});

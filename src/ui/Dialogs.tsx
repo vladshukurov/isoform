@@ -35,7 +35,7 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
         </button>
         <button className="tile" onClick={onAgent}>
           <div className="tile-art tile-blank tile-agent"><Sparkles size={20} /></div>
-          <span>С Claude или Codex</span>
+          <span>Описать словами</span>
         </button>
         {Object.entries(editor.templates).map(([name, scene]) => (
           <button key={name} className="tile" onClick={() => create(name)} data-tip={name}>

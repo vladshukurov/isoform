@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
+import { runWithApi } from './ai/api';
+import type { Step } from './ai/job';
+import { runWithClaudeCode } from './ai/local';
 import * as clipboard from './clipboard';
 import * as ops from './ops';
 import { bounds } from './snap';
@@ -50,8 +53,12 @@ export function useEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [message, setMessageState] = useState<string | null>(null);
   // The last change that came from disk (an agent), to flash and offer undo.
-  const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean } | null>(null);
+  const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean; quiet?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  // In-editor generation: its steps, and the file it writes to while running.
+  const [job, setJob] = useState<{ file: string; steps: Step[]; running: boolean; result?: string; error?: string } | null>(null);
+  const running = useRef<{ file: string; abort: AbortController } | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const lastDuplicate = useRef<{ file: string | null; from: string[]; to: string[] } | null>(null);
   const dirty = useRef(new Set<string>());
@@ -116,12 +123,15 @@ export function useEditor() {
         broken.current.delete(name);
         const before = latest.current[name];
         if (before && formatScene(before) === formatScene(scene)) return;
-        if (before) {
+        // A generation writing this file already holds one undo step for the whole run.
+        const generating = running.current?.file === name;
+        if (before && !generating) {
           const h = track(name);
           h.past = [...h.past.slice(-snapshotLimit), { scene: before, selection: sel.current }];
           h.future = [];
           setExternal({ name, ids: changedIds(before, scene), at: Date.now() });
         }
+        if (before && generating) setExternal({ name, ids: changedIds(before, scene), at: Date.now(), quiet: true });
         latest.current = { ...latest.current, [name]: scene };
         setFiles(latest.current);
         // A new file opens by itself only when nothing else is open;
@@ -399,6 +409,7 @@ export function useEditor() {
     const name = freeName(base);
     commit(name, scene);
     openFile(name);
+    return name;
   };
   const createFile = (template?: string) => addFile(template ?? 'scene', template ? structuredClone(templates[template]) : blank());
   const duplicateFile = () => { if (cur.current) addFile(cur.current.replace(/-\d+$/, ''), structuredClone(latest.current[cur.current])); };
@@ -448,7 +459,43 @@ export function useEditor() {
     openFile(Object.keys(rest)[0] ?? null);
   };
 
+  // Generation: one undo step for the whole run; drafts land on the canvas as they come.
+  const generate = async (prompt: string, engine: 'local' | 'api', key = '') => {
+    if (running.current) return;
+    let file = cur.current;
+    if (!file) file = addFile('scene', blank());
+    const scene = latest.current[file] ?? blank(), selection = sel.current;
+    const abort = new AbortController();
+    running.current = { file, abort };
+    change(s => ({ ...s }), true);
+    // Local runs write through disk; flush first so the agent reads what you see.
+    if (engine === 'local') await flush();
+    setJob({ file, steps: [], running: true });
+    const progress = (step: Step) => setJob(j => j && { ...j, steps: [...j.steps.filter(s => s.kind !== step.kind || step.kind === 'tool').slice(-6), step] });
+    const draft = (next: Scene) => {
+      if (cur.current !== file) return;
+      latest.current = { ...latest.current, [file!]: next };
+      dirty.current.add(file!);
+      setFiles(latest.current);
+    };
+    try {
+      const job = { prompt, file, scene, selection, signal: abort.signal, progress, draft };
+      const result = engine === 'local' ? await runWithClaudeCode(job) : await runWithApi(job, key);
+      setJob(j => j && { ...j, running: false, result });
+    } catch (error) {
+      const aborted = abort.signal.aborted;
+      setJob(j => j && { ...j, running: false, error: aborted ? undefined : (error as Error).message, result: aborted ? 'Остановлено' : undefined });
+    } finally {
+      running.current = null;
+      // A run that changed nothing leaves no empty undo step behind.
+      const h = track(file);
+      if (h.past.length && formatScene(h.past.at(-1)!.scene) === formatScene(latest.current[file] ?? blank())) h.past.pop();
+    }
+  };
+  const stopGenerating = () => running.current?.abort.abort();
+
   return {
+    job, generate, stopGenerating, dismissJob: () => setJob(null), aiOpen, setAiOpen,
     files, templates, loaded, local, root, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,

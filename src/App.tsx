@@ -6,6 +6,7 @@ import { useEditor } from './editor';
 import { Canvas } from './ui/Canvas';
 import { AgentDialog, ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
 import { FileHeader } from './ui/FileHeader';
+import { Generate } from './ui/Generate';
 import { LayersPanel } from './ui/LayersPanel';
 import { PanelResizer } from './ui/PanelResizer';
 import { PropertiesPanel } from './ui/PropertiesPanel';
@@ -49,6 +50,7 @@ export function App() {
       if (cmd && e.shiftKey && key === 'l') { e.preventDefault(); editor.toggle(selection, 'locked'); return; }
       if (cmd && e.key === '\\') { e.preventDefault(); setChrome(c => !c); return; }
       if (cmd && key === 'o') { e.preventDefault(); picker.current?.click(); return; }
+      if (cmd && key === 'k') { e.preventDefault(); editor.setAiOpen(!editor.aiOpen); return; }
       if (cmd && key === 'c' && selection.length) { editor.copy(); return; }
       if (cmd && key === 'x' && selection.length) { e.preventDefault(); editor.cut(); return; }
       // The paste event below brings the system clipboard; if the browser
@@ -123,7 +125,8 @@ export function App() {
   };
 
   // The notice about an outside change stays a few seconds, for the open file only.
-  const external = editor.external?.name === editor.current || editor.external?.created ? editor.external : null;
+  // Quiet changes (a generation writing the file) only flash on the canvas.
+  const external = !editor.external?.quiet && (editor.external?.name === editor.current || editor.external?.created) ? editor.external : null;
   useEffect(() => {
     if (!editor.external) return;
     const timer = setTimeout(editor.dismissExternal, 8000);
@@ -161,6 +164,7 @@ export function App() {
                 <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button></>}
           <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
         </div>}
+        {editor.aiOpen && <Generate editor={editor} onClose={() => editor.setAiOpen(false)} />}
         {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
       </main>
 
@@ -170,7 +174,8 @@ export function App() {
       <input ref={picker} type="file" accept=".json,application/json" multiple hidden
         onChange={e => { open(e.target.files); e.target.value = ''; }} />
       {(dialog === 'new' || (empty && !dialog)) &&
-        <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)} onAgent={() => setDialog('agent')} />}
+        <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)}
+          onAgent={() => { editor.createFile(); setDialog(null); editor.setAiOpen(true); }} />}
       {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'agent' && <AgentDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}

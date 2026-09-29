@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { basename, dirname } from 'node:path';
+import { claudeCli, runAgent } from './agent';
 import { deleteFile, dirs, list, readFile, renameFile, root, saveFile, validName } from './files';
 
 const body = (req: IncomingMessage) => new Promise<unknown>((ok, fail) => {
@@ -34,6 +35,8 @@ export function scenesApi(): Plugin {
             const files = list('files');
             return send(res, 200, { root, files: files.scenes, broken: files.broken, templates: list('templates').scenes });
           }
+          if (kind === 'agent' && req.method === 'GET') { const cli = claudeCli(); return send(res, 200, { available: !!cli, loggedIn: !!cli?.loggedIn, version: cli?.version }); }
+          if (kind === 'agent' && req.method === 'POST') return await runAgent(req, res, ((await body(req)) ?? {}) as Record<string, unknown>);
           if (kind === 'files' && name) {
             if (req.method === 'GET') return send(res, 200, { scene: readFile(name) });
             if (req.method === 'PUT') { saveFile(name, await body(req)); return send(res, 200, { ok: true }); }

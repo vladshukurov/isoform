@@ -5,7 +5,7 @@ import { GAP, GROUND, pick, validateScene, type Scene } from '../src/model';
 import { review } from '../src/review';
 import stack from '../recipes/example-stack';
 import vault from '../recipes/example-vault';
-import { warnings } from '../scripts/warnings';
+import { warnings } from '../src/warnings';
 
 const template = (name: string) => validateScene(JSON.parse(readFileSync(`templates/${name}.json`, 'utf8')));
 const names = ['access', 'cicd', 'config', 'government', 'infrastructure', 'personal', 'production', 'storage'];
