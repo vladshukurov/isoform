@@ -52,12 +52,16 @@ function report(scene: Scene) {
   };
 }
 
-// Checked before anything reaches disk: a broken scene is never written.
-function save(name: string, candidate: unknown) {
+// Checked before anything reaches disk: an edit that adds errors is never
+// written. Errors the file already had don't block unrelated edits; they
+// are listed so the agent can mention or fix them.
+function save(name: string, candidate: unknown, before?: Scene) {
   if (!validName(name)) throw new Error(`Имя «${name}»: латиница, цифры и дефис (шаблоны не редактируются)`);
   const scene = validateScene(candidate);
   const { problems, text: check } = report(scene);
-  if (problems.length) return fail(`Не записано — исправь и повтори.\n\n${check}`);
+  const known = new Set(before ? review(before) : []);
+  const added = problems.filter(p => !known.has(p));
+  if (added.length) return fail(`Не записано — правка добавляет ошибки:\n${added.map(p => `✗ ${p}`).join('\n')}\n\n${check}`);
   saveFile(name, scene);
   return text(`Записано в files/${name}.json (${scene.objects.length} блоков), открытый редактор уже показывает изменения.\n\n${check}\n\nПосмотри результат: render_preview.`);
 }
@@ -116,7 +120,9 @@ export function createServer() {
     },
   }, async ({ name, title, motion, objects }) => {
     notify('write_scene', name);
-    try { return save(name, { version: 2, title, motion, objects }); } catch (error) { return fail((error as Error).message); }
+    let before: Scene | undefined;
+    try { before = validName(name) ? readFile(name) : undefined; } catch { /* a new file */ }
+    try { return save(name, { version: 2, title, motion, objects }, before); } catch (error) { return fail((error as Error).message); }
   });
 
   server.registerTool('update_blocks', {
@@ -141,11 +147,12 @@ export function createServer() {
         const { id: _, rename, hover, ...fields } = change;
         const next: Piece = { ...p, ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)), id: rename || p.id };
         if (hover === null) delete next.hover; else if (hover) next.hover = { ...p.hover, ...hover };
+        if (!next.delay) delete next.delay;
         return next;
       });
       const at = before ? objects.findIndex(p => p.id === before) : -1;
       objects = at < 0 ? [...objects, ...add as Piece[]] : [...objects.slice(0, at), ...add as Piece[], ...objects.slice(at)];
-      return save(name, { ...scene, objects });
+      return save(name, { ...scene, objects }, scene);
     } catch (error) { return fail((error as Error).message); }
   });
 

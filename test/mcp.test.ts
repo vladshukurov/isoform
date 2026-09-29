@@ -46,6 +46,16 @@ describe('Isoform MCP server', () => {
     expect(JSON.parse(readFileSync(PATH, 'utf8')).objects).toHaveLength(2);
   });
 
+  it('lets unrelated edits through a file that already has errors, but not new ones', async () => {
+    const { writeFileSync } = await import('node:fs');
+    const { formatScene } = await import('../src/format');
+    writeFileSync(PATH, formatScene({ version: 2, title: 'Т', motion: 'mechanical', objects: [cube('a', 0), cube('b', 20), cube('c', 200)] as never }));
+    expect((await call('update_blocks', { name: NAME, set: [{ id: 'c', z: 24 }] })).isError).toBeFalsy();
+    expect((await call('update_blocks', { name: NAME, set: [{ id: 'c', x: 10 }] })).isError).toBe(true);
+    // Back to the clean scene the next tests edit.
+    writeFileSync(PATH, formatScene({ version: 2, title: 'Т', motion: 'mechanical', objects: [cube('a', 0), cube('b', 60, { hover: { z: 30 } })] as never }));
+  });
+
   it('never writes templates', async () => {
     const r = await call('write_scene', { name: 'templates/storage', title: 'x', motion: 'mechanical', objects: [cube('a', 0)] });
     expect(r.isError).toBe(true);
