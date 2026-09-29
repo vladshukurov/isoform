@@ -24,53 +24,41 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
   );
 }
 
-// New file: empty, one of the site's scenes as a template, or with an agent.
-export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; onClose?: () => void; onAgent: () => void }) {
-  const create = (template?: string) => { editor.createFile(template); onClose?.(); };
+// All files in one place, as the site shows them: yours first, then the
+// series (a template opens as a copy). New files start here too.
+export function Gallery({ editor, onClose, onClaude }: { editor: Editor; onClose: () => void; onClaude: () => void }) {
+  const [hold, setHold] = useState(false);
+  const open = (name: string) => { editor.openFile(name); onClose(); };
+  const create = (template?: string) => { editor.createFile(template); onClose(); };
+  const art = (scene: Scene) => scene.objects.length ? <CardPreview scene={scene} hold={hold} /> : <div className="tile-blank"><Box size={20} /></div>;
   return (
-    <Dialog title="Новый файл" onClose={onClose} wide>
+    <Dialog title="Файлы" onClose={onClose} wide>
+      <label className="check"><input type="checkbox" checked={hold} onChange={e => setHold(e.target.checked)} /> Всё в наведении</label>
+      <h3 className="tiles-heading">Мои</h3>
       <div className="tiles">
+        <button className="tile" onClick={onClaude}>
+          <div className="tile-art tile-blank tile-agent"><ClaudeMark size={22} /></div>
+          <span>Собрать с Claude</span>
+        </button>
         <button className="tile" onClick={() => create()}>
           <div className="tile-art tile-blank"><Plus size={20} /></div>
           <span>Пустой</span>
         </button>
-        <button className="tile" onClick={onAgent}>
-          <div className="tile-art tile-blank tile-agent"><ClaudeMark size={22} /></div>
-          <span>Собрать с Claude</span>
-        </button>
-        {Object.entries(editor.templates).map(([name, scene]) => (
-          <button key={name} className="tile" onClick={() => create(name)}>
-            <div className="tile-art"><CardPreview scene={scene} /></div>
-            <span>{scene.title}</span>
+        {Object.entries(editor.files).map(([name, scene]) => (
+          <button key={name} className={`tile${name === editor.current ? ' is-current' : ''}`} onClick={() => open(name)}>
+            <div className="tile-art">{art(scene)}</div>
+            <span>{name}</span>
           </button>
         ))}
       </div>
-    </Dialog>
-  );
-}
-
-// The whole series next to the open file: equal weight, no look-alikes.
-export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
-  const [hold, setHold] = useState(false);
-  // Your files first (the open one marked), then the site's scenes.
-  const tile = (key: string, name: string, scene: Scene, current = false, open?: () => void) => (
-    <button key={key} className={`tile${current ? ' is-current' : ''}`} onClick={open} disabled={!open}>
-      <div className="tile-art">{scene.objects.length ? <CardPreview scene={scene} hold={hold} /> : <div className="tile-blank"><Box size={20} /></div>}</div>
-      <span>{name}</span>
-    </button>
-  );
-  return (
-    <Dialog title="Серия" onClose={onClose} wide>
-      <label className="check"><input type="checkbox" checked={hold} onChange={e => setHold(e.target.checked)} /> Всё в наведении</label>
-      {Object.keys(editor.files).length > 0 && <>
-        <h3 className="tiles-heading">Мои</h3>
-        <div className="tiles">
-          {Object.entries(editor.files).map(([name, scene]) => tile(`f:${name}`, name, scene, name === editor.current, () => { editor.openFile(name); onClose(); }))}
-        </div>
-      </>}
-      <h3 className="tiles-heading">Сайт</h3>
+      <h3 className="tiles-heading">Серия сайта · откроется копией</h3>
       <div className="tiles">
-        {Object.entries(editor.templates).map(([name, scene]) => tile(`t:${name}`, scene.title, scene))}
+        {Object.entries(editor.templates).map(([name, scene]) => (
+          <button key={name} className="tile" onClick={() => create(name)}>
+            <div className="tile-art">{art(scene)}</div>
+            <span>{scene.title}</span>
+          </button>
+        ))}
       </div>
     </Dialog>
   );

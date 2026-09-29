@@ -10,8 +10,7 @@ type Props = {
   dark: boolean;
   onDark: () => void;
   onWelcome: () => void;
-  onNew: () => void;
-  onSeries: () => void;
+  onFiles: () => void;
   onShortcuts: () => void;
   onImport: () => void;
   onDelete: () => void;
@@ -19,7 +18,7 @@ type Props = {
 
 // Top left: the file, as a pill that opens the main menu (double-click the
 // name to rename).
-export function FileHeader({ editor, dark, onDark, onWelcome, onNew, onSeries, onShortcuts, onImport, onDelete }: Props) {
+export function FileHeader({ editor, dark, onDark, onWelcome, onFiles, onShortcuts, onImport, onDelete }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const { current } = editor;
@@ -27,14 +26,14 @@ export function FileHeader({ editor, dark, onDark, onWelcome, onNew, onSeries, o
   const items: MenuItem[] = [
     ...(Object.keys(editor.files).length ? [{ heading: 'Файлы' }] : []),
     ...Object.keys(editor.files).map(name => ({ label: name, checked: name === current, onSelect: () => editor.openFile(name) })),
-    ...(Object.keys(editor.files).length ? ['separator' as const] : []),
-    { label: 'Новый файл…', onSelect: onNew },
+    { label: 'Все файлы и серия…', onSelect: onFiles },
+    'separator',
+    { label: 'Новый файл', onSelect: () => editor.createFile() },
     { label: 'Открыть JSON…', shortcut: '⌘O', onSelect: onImport },
     { label: 'Дублировать', disabled: !current, onSelect: editor.duplicateFile },
     { label: 'Переименовать', disabled: !current, onSelect: () => setRenaming(true) },
     { label: 'Удалить', danger: true, disabled: !current, onSelect: onDelete },
     'separator',
-    { label: 'Серия', onSelect: onSeries },
     { label: 'Начало работы', onSelect: onWelcome },
     { label: 'Горячие клавиши', shortcut: '?', onSelect: onShortcuts },
     'separator',
