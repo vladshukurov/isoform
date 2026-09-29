@@ -9,6 +9,7 @@ type Props = {
   editor: Editor;
   dark: boolean;
   onDark: () => void;
+  onWelcome: () => void;
   onNew: () => void;
   onSeries: () => void;
   onShortcuts: () => void;
@@ -18,7 +19,7 @@ type Props = {
 
 // Top left: the file, as a pill that opens the main menu (double-click the
 // name to rename).
-export function FileHeader({ editor, dark, onDark, onNew, onSeries, onShortcuts, onImport, onDelete }: Props) {
+export function FileHeader({ editor, dark, onDark, onWelcome, onNew, onSeries, onShortcuts, onImport, onDelete }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const { current } = editor;
@@ -34,6 +35,7 @@ export function FileHeader({ editor, dark, onDark, onNew, onSeries, onShortcuts,
     { label: 'Удалить', danger: true, disabled: !current, onSelect: onDelete },
     'separator',
     { label: 'Серия', onSelect: onSeries },
+    { label: 'Начало работы', onSelect: onWelcome },
     { label: 'Горячие клавиши', shortcut: '?', onSelect: onShortcuts },
     'separator',
     { label: 'Тёмная тема', checked: dark, onSelect: onDark },

@@ -506,6 +506,26 @@ button.tile:disabled { opacity: 1; }
 .tile-blank { width: 100%; height: 100%; display: grid; place-items: center; color: var(--muted); background: var(--field); }
 .dialog .tile-art.tile-blank { background: var(--field); box-shadow: none; }
 .tile-agent { position: relative; color: var(--text); }
+/* First steps */
+.welcome { display: grid; gap: 20px; padding: 0 20px 20px; }
+.welcome-hero { display: flex; gap: 14px; align-items: flex-start; }
+.welcome-hero .logo { width: 44px; height: 44px; border-radius: 13px; }
+.welcome-hero h1 { font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
+.welcome-hero p { color: var(--muted); line-height: 19px; max-width: 560px; margin-top: 2px; }
+.welcome-steps { list-style: none; display: grid; gap: 4px; }
+.welcome-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.welcome-num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--font); font-style: normal; background: var(--field); color: var(--text); }
+.welcome-steps li.is-done .welcome-num { background: var(--ink); color: var(--on-ink); }
+.welcome-step { display: grid; gap: 6px; min-width: 0; padding-top: 2px; }
+.welcome-step > b { font-weight: 600; }
+.welcome-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--muted); line-height: 18px; }
+.welcome-status .spin { margin-right: -8px; }
+.welcome-step .connect { padding: 8px 0 0; }
+.welcome-step .tiles { padding: 8px 0 0; }
+.tiles.is-compact { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.tile.is-off .tile-art { opacity: .45; }
+.welcome-foot { color: var(--muted); }
+.welcome-foot code { font: 11px var(--mono); background: var(--field); color: var(--text); padding: 1px 5px; border-radius: 5px; }
 .tiles-heading { padding: 12px 20px 0; color: var(--muted); font-weight: 500; }
 .tiles-heading + .tiles { padding-top: 10px; }
 .check { display: flex; gap: 8px; align-items: center; padding: 0 20px 4px; color: var(--muted); }

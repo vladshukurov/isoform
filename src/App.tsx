@@ -10,8 +10,9 @@ import { FileHeader, TopActions } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Tooltip } from './ui/Tooltip';
+import { Welcome } from './ui/Welcome';
 
-type Dialog = 'new' | 'series' | 'shortcuts' | 'delete' | null;
+type Dialog = 'welcome' | 'new' | 'series' | 'shortcuts' | 'delete' | null;
 const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select');
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
 const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
@@ -141,7 +142,7 @@ export function App() {
       {/* Everything else floats over the canvas. */}
       <div className="chrome">
         <FileHeader editor={editor} dark={dark} onDark={() => setDark(d => !d)}
-          onNew={() => setDialog('new')} onSeries={() => setDialog('series')}
+          onWelcome={() => setDialog('welcome')} onNew={() => setDialog('new')} onSeries={() => setDialog('series')}
           onShortcuts={() => setDialog('shortcuts')} onImport={() => picker.current?.click()} onDelete={() => setDialog('delete')} />
         <TopActions editor={editor} dark={dark} onDark={() => setDark(d => !d)} />
 
@@ -175,9 +176,10 @@ export function App() {
 
       <input ref={picker} type="file" accept=".json,application/json" multiple hidden
         onChange={e => { open(e.target.files); e.target.value = ''; }} />
-      {(dialog === 'new' || (empty && !dialog)) &&
-        <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)}
-          onAgent={() => { editor.createFile(); setDialog(null); editor.claude.setOpen(true); }} />}
+      {/* With no files yet the app opens on the first steps. */}
+      {(dialog === 'welcome' || (empty && !dialog)) && <Welcome editor={editor} onClose={empty ? undefined : () => setDialog(null)} />}
+      {dialog === 'new' && <NewFileDialog editor={editor} onClose={() => setDialog(null)}
+        onAgent={() => { editor.createFile(); setDialog(null); editor.claude.setOpen(true); }} />}
       {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"

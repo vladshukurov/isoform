@@ -16,14 +16,30 @@
 
 ## Запуск
 
+Нужны [Node.js](https://nodejs.org) 20.19 или новее и git.
+
 ```bash
+git clone https://github.com/vladshukurov/isoform.git
+cd isoform
 npm install
 npm run dev
 ```
 
-`http://localhost:8790`. Ваши файлы — `files/*.json`, шаблоны — `templates/*.json` (не редактируются). Всё сохраняется автоматически; файл, изменённый на диске, сразу обновляется в редакторе, и это изменение можно отменить ⌘Z.
+Откройте http://localhost:8790 — первый экран проведёт по шагам.
 
-`npm run build` собирает статическую версию без сервера: шаблоны встроены, файлы хранятся в браузере (в шапке — метка «Браузер»).
+**Подключить Claude.** Сцены собирает Claude Code на вашем компьютере — по вашей подписке Claude (Pro или Max):
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+Затем в редакторе нажмите «Войти через Claude» — вход откроется в браузере. Без подписки можно работать по ключу Anthropic API из [console.anthropic.com](https://console.anthropic.com/settings/keys): оплата по использованию, ключ хранится только в вашем браузере.
+
+**Обновить редактор**: `git pull`, затем `npm install` и снова `npm run dev`.
+
+Ваши файлы — `files/*.json` (в git не попадают, остаются у вас), шаблоны серии — `templates/*.json` (не редактируются). Всё сохраняется автоматически; файл, изменённый на диске, сразу обновляется в редакторе, и это изменение можно отменить ⌘Z.
+
+`npm run build` собирает статическую версию без сервера: шаблоны встроены, файлы хранятся в браузере (в шапке — метка «Браузер»), Claude — только по ключу API.
 
 ## Описать словами
 
@@ -34,7 +50,13 @@ npm run dev
 
 ## Агенты через MCP
 
-Меню → «Подключить агентов…» (или карточка при первом запуске): готовая команда для Claude Code и конфиг для Codex, Cursor и Claude Desktop — с путями этого компьютера. Сервер (`npm run mcp`, `mcp/server.ts`) даёт агенту инструменты:
+Claude Code, Codex, Cursor и Claude Desktop подключаются к редактору как к MCP-серверу (`npm run mcp`, `mcp/server.ts`). Для Claude Code — одна команда из папки проекта:
+
+```bash
+claude mcp add --scope user isoform -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"
+```
+
+Сервер даёт агенту инструменты:
 
 | | |
 |---|---|
