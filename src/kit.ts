@@ -4,6 +4,10 @@
 // and tweak them by hand.
 import { GAP, GROUND, PLATE, depthSort, validateScene, type Box, type Motion, type Piece, type Scene } from './model';
 
+export { GAP, GROUND, PLATE };
+// The height a block's top sits at: stack the next one at top(b) or top(b) + GAP.
+export const top = (b: Box) => b.z + b.h;
+
 export const block = (id: string, x: number, y: number, z: number, w: number, d: number, h: number): Piece =>
   ({ id, x, y, z, w, d, h });
 
@@ -49,6 +53,16 @@ export const slide = (piece: Piece, dx: number, dy: number, delay?: number) =>
 // Sizes grow by the given amounts: the outline morphs, like a drawer pulled out.
 export const grow = (piece: Piece, by: { w?: number; d?: number; h?: number }, delay?: number) =>
   withHover(piece, Object.fromEntries(Object.entries(by).map(([k, v]) => [k, at(piece)[k as 'w'] + v!])), delay);
+
+// Shrinks from one side on hover, so a part slides INTO a body instead of
+// cutting through it: retract(key, '-x', 40) pulls a key 40 into the lock.
+// Move whatever hangs off that side with slide() by the same amount.
+export function retract(piece: Piece, side: '-x' | '+x' | '-y' | '+y' | '-z' | '+z', by: number, delay?: number) {
+  const axis = side[1] as 'x' | 'y' | 'z', size = ({ x: 'w', y: 'd', z: 'h' } as const)[axis], now = at(piece);
+  const hover: Partial<Box> = { [size]: now[size] - by };
+  if (side[0] === '-') hover[axis] = now[axis] + by;
+  return withHover(piece, hover, delay);
+}
 
 // Delays 0, step, 2·step… in array order: a wave.
 export const cascade = (pieces: Piece[], step = .04) =>

@@ -5,12 +5,17 @@ import { useEffect, useRef, useState } from 'react';
 import { BOX_KEYS, hoverBox, type Box, type Motion, type Piece } from './model';
 
 export const ENTER = .6, LEAVE = .45;
-const ease: Record<Motion, (t: number) => number> = {
+export const ease: Record<Motion, (t: number) => number> = {
   // GSAP power2.inOut
   mechanical: t => t < .5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
   // GSAP power4.out = cubic-bezier(.22, 1, .36, 1) on the site
   layered: t => 1 - (1 - t) ** 5,
 };
+
+// Each block's geometry `seconds` into the hover, for stills of the motion.
+export function hoverAt(objects: Piece[], motion: Motion, seconds: number): Box[] {
+  return objects.map(p => lerpBox(p, hoverBox(p), ease[motion](Math.min(1, Math.max(0, (seconds - (p.delay ?? 0)) / ENTER)))));
+}
 
 type Track = { from: number; to: number; start: number; delay: number; duration: number };
 const value = (track: Track | undefined, now: number, motion: Motion) => {

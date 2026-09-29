@@ -1,11 +1,13 @@
 // Draws scenes to PNG so an agent (or a person without the editor open) can
-// look at the result: the site card at rest and on hover, side by side.
+// look at the result: the site card at rest, halfway into the hover (delays
+// and cascades show up here) and fully hovered, side by side.
 //   npm run render                    every file in files/ → previews/<name>.png
 //   npm run render vault              only files/vault.json
 //   npm run render templates/storage  a template → previews/templates/storage.png
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
+import { ENTER, hoverAt } from '../src/anim';
 import { fit } from '../src/geometry';
 import { hoverBox, type Piece, type Scene } from '../src/model';
 import { siteSvg } from '../src/render';
@@ -34,17 +36,21 @@ const card = (cls: string, x: number, t: typeof REST, body: string) =>
 
 function preview(source: Scene) {
   const scene = { ...source, objects: source.objects.filter(p => !p.hidden) };
-  // Every block in its hover state, drawn in the rest framing as the site does.
-  const hovered = { ...scene, objects: scene.objects.map((p): Piece => ({ id: p.id, ...hoverBox(p) })) };
+  // Hover frames, drawn in the rest framing as the site does.
+  const at = (boxes: { x: number; y: number; z: number; w: number; d: number; h: number }[]) =>
+    ({ ...scene, objects: scene.objects.map((p, i): Piece => ({ id: p.id, ...boxes[i] })) });
+  const total = Math.max(0, ...scene.objects.map(p => p.delay ?? 0)) + ENTER;
   const rest = drawing(scene);
   const transform = rest.match(/transform="[^"]*"/)![0];
-  const open = drawing(hovered).replace(/transform="[^"]*"/, transform);
+  const frame = (s: Scene) => drawing(s).replace(/transform="[^"]*"/, transform);
+  const middle = frame(at(hoverAt(scene.objects, scene.motion, total / 2)));
+  const open = frame(at(scene.objects.map(hoverBox)));
   const { scale } = fit(scene.objects);
-  const width = CARD * 2 + GAP;
+  const width = CARD * 3 + GAP * 2;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * PX}" height="${CARD * PX}" viewBox="0 0 ${width} ${CARD}">`
     + `<style>${style('rest', REST, scale)}${style('hover', HOVER, scale)}</style>`
     + `<rect width="${width}" height="${CARD}" fill="#ffffff"/>`
-    + card('rest', 0, REST, rest) + card('hover', CARD + GAP, HOVER, open) + '</svg>';
+    + card('rest', 0, REST, rest) + card('hover', CARD + GAP, HOVER, middle) + card('hover', 2 * (CARD + GAP), HOVER, open) + '</svg>';
   return new Resvg(svg, { font: { loadSystemFonts: false } }).render().asPng();
 }
 

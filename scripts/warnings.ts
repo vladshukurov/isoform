@@ -13,11 +13,13 @@ const alongY = (a: Box, b: Box, touch = false) => spans(a.y, a.y + a.d, b.y, b.y
 const alongZ = (a: Box, b: Box) => spans(a.z, a.z + a.h, b.z, b.z + b.h);
 
 // A block stays up if it stands on a top (or floats one GAP above it) inside
-// its footprint, or is fixed side-on to a neighbour (a drawer on a body, a bridge).
+// its footprint, hangs under another block (key teeth under a shaft), or is
+// fixed side-on to a neighbour (a drawer on a body, a bridge).
 function supported(p: Box, others: Box[]) {
   if (p.z <= GROUND) return true;
   return others.some(o =>
     (alongX(p, o) && alongY(p, o) && [p.z, p.z - GAP].some(top => Math.abs(o.z + o.h - top) < .01))
+    || (alongX(p, o) && alongY(p, o) && Math.abs(o.z - (p.z + p.h)) < .01)
     || (alongZ(p, o) && ((alongX(p, o, true) && alongY(p, o)) || (alongY(p, o, true) && alongX(p, o)))));
 }
 

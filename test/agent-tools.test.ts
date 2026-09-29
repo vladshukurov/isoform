@@ -74,3 +74,14 @@ describe('check warnings', () => {
     expect(out).not.toMatch(/slow висит/);
   });
 });
+
+describe('retract and top', async () => {
+  const { block, retract, top } = await import('../src/kit');
+  const { hoverBox } = await import('../src/model');
+  it('shrinks from the chosen side, keeping the opposite face in place', () => {
+    const key = block('key', 100, 0, 40, 80, 10, 10);
+    expect(hoverBox(retract(key, '-x', 30))).toMatchObject({ x: 130, w: 50 });
+    expect(hoverBox(retract(key, '+x', 30))).toMatchObject({ x: 100, w: 50 });
+  });
+  it('top is z + h', () => expect(top(block('a', 0, 0, 14, 1, 1, 30))).toBe(44));
+});
