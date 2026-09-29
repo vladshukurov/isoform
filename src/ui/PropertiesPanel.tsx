@@ -155,7 +155,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
 
       {hover && <Timeline editor={editor} onPlay={play} playing={playing} />}
       {hover && !selected.length && !scene.objects.some(p => hoverKind(p) !== 'rest') && (
-        <section><p className="panel-hint">Пока ничего не двигается. Выделите блок и поменяйте его размер или положение здесь — так он будет выглядеть при наведении.</p></section>
+        <section><p className="panel-hint">Ничего не двигается</p></section>
       )}
 
       {!hover && selected.length === 0 && (

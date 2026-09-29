@@ -145,7 +145,7 @@ export function Dock({ editor }: { editor: Editor }) {
     if (wasRunning.current && !running) { setFocused(true); requestAnimationFrame(() => input.current?.focus()); }
     wasRunning.current = running;
   }, [running]);
-  const placeholder = running ? 'Claude работает — можно смотреть на холст' : !ready ? 'Подключите Claude' : '';
+  const placeholder = running ? 'Claude работает' : !ready ? 'Подключите Claude' : '';
   const talk = thread.length > 0 || !!job;
   const setup = (needsLogin || needsKey) && !running;
   // In the field the conversation is always there, even a brand new one.
@@ -221,7 +221,6 @@ export function Dock({ editor }: { editor: Editor }) {
               ) : (
                 <div className="thread" ref={log} aria-live="polite">
                   {!talk && <div className="thread-empty">
-                    <p>Claude видит сцену и выделенные блоки. Напишите, что собрать или поправить, — или начните с идеи:</p>
                     <div className="ideas">{examples.slice(0, 3).map(x => <button key={x} className="idea" onMouseDown={e => e.preventDefault()} onClick={() => ask(x)}>{x}</button>)}</div>
                   </div>}
                   {thread.slice(0, last ? -1 : undefined).slice(-6).map((t, i) => (
