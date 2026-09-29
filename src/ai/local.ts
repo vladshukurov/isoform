@@ -12,6 +12,16 @@ export async function runWithClaudeCode(job: Job) {
     method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ file: job.file, prompt: job.prompt, selection: job.selection, fresh: !job.scene.objects.length, session: job.session }),
   });
+  return consume(response, job);
+}
+
+// A run already going on the server (the page was reloaded, or opened later).
+export const agentRuns = () => fetch('/api/agent/runs').then(r => r.ok ? r.json() as Promise<{ file: string; prompt: string }[]> : []).catch(() => []);
+export const watchClaudeCode = async (job: Job) => consume(await fetch(`/api/agent/watch/${job.file}`, { signal: job.signal }), job);
+// Leaving the page never stops Claude; only this does.
+export const stopClaudeCode = (file: string) => fetch(`/api/agent/stop/${file}`, { method: 'POST' }).catch(() => undefined);
+
+async function consume(response: Response, job: Job) {
   if (!response.ok || !response.body) throw new Error((await response.json().catch(() => ({}))).error ?? 'Claude Code не запустился');
   // The server streams one JSON step per line.
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -40,7 +50,8 @@ export async function runWithClaudeCode(job: Job) {
       else job.progress(step as Step);
     }
   }
-  return result;
+  // Claude sometimes still reports like a developer; keep it plain.
+  return result.replace(/`([^`]*)`/g, '$1').replace(/\s*\([^)]*(files\/|\.json|✓)[^)]*\)/g, '').trim();
 }
 
 // Signing in to Claude from the editor: the browser opens, the page shows a code.

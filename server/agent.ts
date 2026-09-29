@@ -69,22 +69,26 @@ export async function finishLogin(code: string) {
   return { loggedIn: true };
 }
 
-const TOOLS = ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash(npm run check:*)', 'Bash(npm run render:*)', 'Bash(npm run scene:*)'];
+const TOOLS = ['Read', 'Write', 'Edit', 'Bash(npm run check:*)', 'Bash(npm run render:*)', 'Bash(npm run scene:*)'];
 
 function promptFor({ file, prompt, selection, fresh, followUp }: { file: string; prompt: string; selection: string[]; fresh: boolean; followUp: boolean }) {
   if (followUp) return [
+    'Ты помогаешь только с этой иллюстрацией. Если просьба не про сцену (здоровье, код, погода, что угодно ещё) — ничего не читай и не трогай файлы, а ответь одной короткой фразой с лёгкой иронией, что ты здесь по иллюстрациям, и предложи, что можно собрать.',
     `Продолжаем: files/${file}.json, пользователь мог поправить его руками — перечитай перед правкой.`,
     selection.length ? `Выделены блоки: ${selection.join(', ')}.` : '',
     `Задача: ${prompt}`,
-    'Как и раньше: Write целиком, check и render, в конце одно-два предложения.',
+    'Как и раньше: Write целиком, check и render; в конце одна короткая фраза для дизайнера, без файлов, id и чисел.',
   ].filter(Boolean).join('\n');
   return [
+    'Ты помогаешь только с этой иллюстрацией. Если просьба не про сцену (здоровье, код, погода, что угодно ещё) — ничего не читай и не трогай файлы, а ответь одной короткой фразой с лёгкой иронией, что ты здесь по иллюстрациям, и предложи, что можно собрать.',
     `Работай по AGENTS.md. Файл сцены: files/${file}.json — он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`,
     fresh ? 'Файл пустой или новый: собери сцену с нуля.' : 'Правь этот файл, сохраняя то, что задача не затрагивает.',
     'Сохраняй сцену инструментом Write целиком (не Edit), в формате редактора: каждый блок — одна строка вида {"id":"…","x":…}, в порядке отрисовки от дальних к ближним — блоки появляются на холсте по мере того, как ты их пишешь.',
     selection.length ? `Выделены блоки: ${selection.join(', ')} — задача про них.` : '',
     `Задача: ${prompt}`,
-    `Перед концом: npm run check ${file}, npm run render ${file} и посмотри previews/${file}.png. Не спрашивай уточнений — реши сам. В конце одно-два предложения по-русски, что сделал.`,
+    'Не читай исходники редактора (src/, scripts/, server/): правила — в AGENTS.md, образцы — в templates/.',
+    `Перед концом: npm run check ${file}, npm run render ${file} и посмотри previews/${file}.png. Не спрашивай уточнений — реши сам. Работай быстро: хватит одного-двух шаблонов для образца.`,
+    'Последнее сообщение — для дизайнера, одна короткая фраза по-русски о том, что изменилось на картинке: без имён файлов, id блоков, чисел, кода и отчёта о проверках.',,
   ].filter(Boolean).join('\n');
 }
 
@@ -129,29 +133,58 @@ export function partialScene(input: string, path: string) {
   return { objects, title, motion };
 }
 
-export async function runAgent(req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
+// A run lives on the server, apart from the page that started it: reloading
+// or closing the editor doesn't stop Claude, and an editor that opens the
+// file again picks the run up where it is (every line so far is replayed).
+type Run = { file: string; prompt: string; child: ReturnType<typeof spawn>; lines: string[]; clients: Set<ServerResponse>; done: boolean };
+const runs = new Map<string, Run>();
+export const activeRuns = () => [...runs.values()].filter(r => !r.done).map(r => ({ file: r.file, prompt: r.prompt }));
+
+function attach(run: Run, res: ServerResponse) {
+  res.statusCode = 200;
+  res.setHeader('content-type', 'application/x-ndjson; charset=utf-8');
+  for (const line of run.lines) res.write(line);
+  if (run.done) return res.end();
+  run.clients.add(res);
+  res.on('close', () => run.clients.delete(res));
+}
+export function watchAgent(file: string, res: ServerResponse) {
+  const run = runs.get(file);
+  if (!run) { res.statusCode = 404; return res.end(JSON.stringify({ error: 'Нет запуска' })); }
+  attach(run, res);
+}
+export function stopAgent(file: string) {
+  const run = runs.get(file);
+  if (run && !run.done) run.child.kill('SIGTERM');
+  return { ok: true };
+}
+
+export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
   const cli = claudeCli();
   if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
   if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
   if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
+  const file = body.file;
+  // One run per file: a second request joins the one already going.
+  const going = runs.get(file);
+  if (going && !going.done) return attach(going, res);
   const selection = Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [];
   const session = typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null;
-  const file = body.file;
   const args = ['-p', promptFor({ file, prompt: body.prompt, selection, fresh: body.fresh === true, followUp: !!session }),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), ...(session ? ['--resume', session] : [])];
+    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', 'Skill,Task',
+    ...(session ? ['--resume', session] : [])];
   const child = spawn(cli.path, args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const run: Run = { file, prompt: body.prompt, child, lines: [], clients: new Set(), done: false };
+  runs.set(file, run);
+  const emit = (event: object) => { const line = JSON.stringify(event) + '\n'; run.lines.push(line); for (const c of run.clients) c.write(line); };
+  const send = (step: { kind: string; text: string }) => emit(step);
+  attach(run, res);
 
-  res.statusCode = 200;
-  res.setHeader('content-type', 'application/x-ndjson; charset=utf-8');
-  const send = (step: { kind: string; text: string }) => res.write(JSON.stringify(step) + '\n');
-  // Stopping in the editor aborts the request; the agent stops with it.
-  req.on('close', () => { if (child.exitCode === null) child.kill('SIGTERM'); });
-
-  let buffer = '', errors = '', sessionId = session;
+  let buffer = '', errors = '', sessionId = session, ended = false;
   // Tool input streaming in, per content block, and how many blocks were last shown.
   const inputs = new Map<number, { name: string; json: string; shown: number }>();
-  child.stdout.setEncoding('utf8').on('data', chunk => {
+  child.stdout!.setEncoding('utf8').on('data', (chunk: string) => {
     buffer += chunk;
     let at: number;
     while ((at = buffer.indexOf('\n')) >= 0) {
@@ -168,23 +201,33 @@ export async function runAgent(req: IncomingMessage, res: ServerResponse, body: 
             if (block?.name === 'Write') {
               block.json += e.delta.partial_json;
               const scene = partialScene(block.json, `files/${file}.json`);
-              if (scene && scene.objects.length !== block.shown) { block.shown = scene.objects.length; res.write(JSON.stringify({ kind: 'scene', ...scene }) + '\n'); }
+              // Only the latest draft matters to a late joiner; keep the replay short.
+              if (scene && scene.objects.length !== block.shown) {
+                block.shown = scene.objects.length;
+                const at = run.lines.findIndex(l => l.startsWith('{"kind":"scene"'));
+                if (at >= 0) run.lines.splice(at, 1);
+                emit({ kind: 'scene', ...scene });
+              }
             }
           }
           continue;
         }
         if (event.type === 'assistant') for (const block of event.message?.content ?? []) { const step = describe(block); if (step) send(step); }
         if (event.type === 'result') {
-          if (sessionId) res.write(JSON.stringify({ kind: 'session', text: sessionId }) + '\n');
+          ended = true;
+          if (sessionId) emit({ kind: 'session', text: sessionId });
           send(event.is_error ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') } : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' ') });
         }
       } catch { /* a partial or non-JSON line */ }
     }
   });
-  child.stderr.setEncoding('utf8').on('data', chunk => { errors += chunk; });
-  await new Promise<void>(done => child.on('close', code => {
-    if (code && code !== 143 && !res.writableEnded) send({ kind: 'error', text: errors.trim().split('\n').at(-1) || `Claude Code завершился с кодом ${code}` });
-    res.end();
-    done();
-  }));
+  child.stderr!.setEncoding('utf8').on('data', (chunk: string) => { errors += chunk; });
+  child.on('close', code => {
+    if (!ended) send(code === null || code === 143 ? { kind: 'done', text: 'Остановлено' } : { kind: 'error', text: errors.trim().split('\n').at(-1) || `Claude Code завершился с кодом ${code}` });
+    run.done = true;
+    for (const c of run.clients) c.end();
+    run.clients.clear();
+    // A finished run is kept a little for an editor reopening just now.
+    setTimeout(() => { if (runs.get(file) === run) runs.delete(file); }, 30000);
+  });
 }
