@@ -11,7 +11,7 @@ import { Menu, type MenuItem } from './Menu';
 
 type View = { s: number; ox: number; oy: number };
 type Drag =
-  | { kind: 'move'; x: number; y: number; vertical: boolean; start: Map<string, Box>; moved: boolean }
+  | { kind: 'move'; x: number; y: number; vertical: boolean; start: Map<string, Box>; moved: boolean; offset?: { x: number; y: number; z: number } }
   | { kind: 'size'; x: number; y: number; key: 'w' | 'd' | 'h'; id: string; start: Box; moved: boolean }
   | { kind: 'pan'; x: number; y: number; view: View }
   | { kind: 'marquee'; x: number; y: number; to: Vec2; base: string[] }
@@ -215,6 +215,7 @@ export function Canvas({ editor }: { editor: Editor }) {
         off = pulled.offset;
         setGuides(pulled.guides);
       } else setGuides([]);
+      d.offset = off;
       editor.updatePieces([...d.start.keys()], (_, p) => {
         const b = d.start.get(p.id)!;
         return { x: b.x + off.x, y: b.y + off.y, z: b.z + off.z };
@@ -294,10 +295,14 @@ export function Canvas({ editor }: { editor: Editor }) {
     w: Math.max(1, Math.abs(drag.to.x - drag.from.x)), d: Math.max(1, Math.abs(drag.to.y - drag.from.y)), h: drag.plate ? PLATE : 40,
   } : undefined;
   // Size badge under the selection, as in Figma.
-  const badgeBox = draft ?? single;
+  // While moving it shows how far the blocks went instead.
+  const moveOffset = drag?.kind === 'move' && dragRef.current?.kind === 'move' ? dragRef.current.offset : undefined;
+  const badgeBox = draft ?? (moveOffset ? bounds(selected.map(boxOf)) : single);
+  const signed = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v));
   const badge = badgeBox && (() => {
     const pts = vertices(badgeBox).map(project).map(toScreen);
-    return { x: (Math.min(...pts.map(p => p.x)) + Math.max(...pts.map(p => p.x))) / 2, y: Math.max(...pts.map(p => p.y)) + 10, text: `${fmt(badgeBox.w)} × ${fmt(badgeBox.d)} × ${fmt(badgeBox.h)}` };
+    const text = moveOffset ? `${signed(moveOffset.x)}, ${signed(moveOffset.y)}, ${signed(moveOffset.z)}` : `${fmt(badgeBox.w)} × ${fmt(badgeBox.d)} × ${fmt(badgeBox.h)}`;
+    return { x: (Math.min(...pts.map(p => p.x)) + Math.max(...pts.map(p => p.x))) / 2, y: Math.max(...pts.map(p => p.y)) + 10, text };
   })();
   const cursor = panning ? (drag?.kind === 'pan' ? 'grabbing' : 'grab') : tool === 'block' || tool === 'plate' ? 'crosshair' : 'default';
 

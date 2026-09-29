@@ -73,7 +73,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
             onDragLeave={() => setDrop(d => d?.id === p.id ? null : d)}
             onDrop={e => { e.preventDefault(); if (drop) place(drop); setDrop(null); dragging.current = []; }}
             onDragEnd={() => { setDrop(null); dragging.current = []; }}>
-            <span className="layer-icon">{p.h <= PLATE + 4 ? <Layers2 size={14} /> : <Box size={14} />}</span>
+            <span className="layer-icon">{p.h <= PLATE + 4 ? <Layers2 size={16} /> : <Box size={16} />}</span>
             {editing === p.id
               ? <input className="layer-name" autoFocus defaultValue={p.id}
                   onClick={e => e.stopPropagation()}
@@ -86,18 +86,18 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                   onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
               : <span className="layer-name">{p.id}</span>}
             <span className="layer-status">
-              {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={13} /></span>}
+              {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={14} /></span>}
               {kind !== 'rest' && <span className="layer-motion" data-tip={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
-                {kind === 'move' ? <MoveUpRight size={13} /> : <Scaling size={13} />}
+                {kind === 'move' ? <MoveUpRight size={14} /> : <Scaling size={14} />}
               </span>}
             </span>
             <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'locked'); }}>
-              {p.locked ? <Lock size={13} /> : <LockOpen size={13} />}
+              {p.locked ? <Lock size={14} /> : <LockOpen size={14} />}
             </button>
             <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'hidden'); }}>
-              {p.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+              {p.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
         );

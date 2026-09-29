@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround,
-  Download, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Timer,
+  ArrowDownToLine, CopyPlus, Hash, MoveHorizontal, Download, FlipHorizontal2, FlipVertical2, Proportions, RotateCcw, RotateCw, Timer,
 } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import { downloadJson, downloadPng, downloadSvg } from '../download';
@@ -22,6 +22,8 @@ const TIP: Record<BoxKey, string> = { x: 'X', y: 'Y', z: 'Высота над п
 export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dark: boolean; resizer?: React.ReactNode }) {
   const { scene, selected, mode, current } = editor;
   const [pinned, setPinned] = useState(false);
+  const [repeating, setRepeating] = useState(false);
+  const [rep, setRep] = useState<{ count: number; gap: number; axis: 'x' | 'y' | 'z' }>({ count: 3, gap: 10, axis: 'x' });
   const [playing, setPlaying] = useState<number | null>(null);
   const playTimer = useRef(0);
   const titleEdit = useRef(false);
@@ -67,7 +69,10 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
 
       {selected.length > 1 && (
         <section>
-          <h3>Выравнивание</h3>
+          <div className="section-head">
+            <h3>Выравнивание</h3>
+            <button className="icon" aria-label="Размер как у последнего" data-tip={`Размер как у ${ids.at(-1)}`} onClick={() => editor.matchSize()}><Proportions size={14} /></button>
+          </div>
           <div className="align-grid">
             {(['x', 'y', 'z'] as const).map(axis => (
               <div key={axis} className="align-row">
@@ -91,11 +96,25 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
           <div className="section-head">
             <h3>Трансформация</h3>
             <div className="row">
+              <button className="icon" aria-label="На опору" data-tip="На опору" data-kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></button>
+              <button className="icon" aria-label="Повторить" data-tip="Повторить" aria-pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></button>
               <button className="icon" aria-label="Отразить по X" data-tip="Отразить по X" data-kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></button>
               <button className="icon" aria-label="Отразить по Y" data-tip="Отразить по Y" data-kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></button>
               <button className="icon" aria-label="Повернуть на 90°" data-tip="Повернуть на 90°" data-kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></button>
             </div>
           </div>
+          {repeating && (
+            <div className="repeat">
+              <NumberField label={<Hash size={12} />} tip="Сколько всего" value={rep.count} step={1} min={2} onCommit={count => setRep(r => ({ ...r, count: Math.round(count) }))} />
+              <NumberField label={<MoveHorizontal size={12} />} tip="Зазор" value={rep.gap} step={2} onCommit={gap => setRep(r => ({ ...r, gap }))} />
+              <div className="segmented">
+                {(['x', 'y', 'z'] as const).map(axis => (
+                  <button key={axis} aria-pressed={rep.axis === axis} onClick={() => setRep(r => ({ ...r, axis }))}>{axis.toUpperCase()}</button>
+                ))}
+              </div>
+              <button className="button is-primary" onClick={() => { editor.repeat(rep.axis, rep.count, rep.gap); setRepeating(false); }}>Повторить</button>
+            </div>
+          )}
         </section>
       )}
 

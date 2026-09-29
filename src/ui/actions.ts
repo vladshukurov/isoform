@@ -16,6 +16,8 @@ export function pieceMenu(editor: Editor, ids: string[]): MenuItem[] {
     { label: 'Отразить по X', shortcut: '⇧H', onSelect: () => editor.mirror('x', ids) },
     { label: 'Отразить по Y', shortcut: '⇧V', onSelect: () => editor.mirror('y', ids) },
     { label: 'Повернуть на 90°', shortcut: '⇧R', onSelect: () => editor.rotate(ids) },
+    { label: 'На опору', shortcut: 'G', onSelect: () => editor.drop(ids) },
+    ...(ids.length > 1 ? [{ label: `Размер как у ${ids.at(-1)}`, onSelect: () => editor.matchSize(undefined, ids) }] : []),
     'separator',
     { label: 'На передний план', shortcut: '⇧]', onSelect: () => editor.toEdge(true, ids) },
     { label: 'Вперёд', shortcut: ']', onSelect: () => editor.reorder(1, ids) },

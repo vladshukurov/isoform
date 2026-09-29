@@ -220,8 +220,8 @@ button.tile:hover .tile-art { box-shadow: 0 0 0 2px var(--blue); }
 .keys div { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
 .keys dd kbd { color: var(--text); background: var(--field); border-radius: 4px; padding: 1px 6px; }
 
-/* Lucide icons a touch lighter, like Figma UI3 */
-svg.lucide { stroke-width: 1.6; flex: none; }
+/* Lucide icons at their own stroke; never squeezed by flex. */
+svg.lucide { flex: none; }
 
 /* Tooltip */
 .tooltip {
@@ -307,3 +307,8 @@ button.tile:disabled { opacity: 1; }
 
 /* Canvas in dark: a touch more ink than the site card, for editing */
 :root[data-theme="dark"] .workspace { --stroke: #4a4e56; --stroke-strong: #737983; }
+.repeat { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.repeat .segmented { grid-column: 1 / -1; }
+.repeat .button { grid-column: 1 / -1; }
+.button.is-primary { background: var(--blue); color: #fff; }
+.button.is-primary:hover { background: #0b8ae6; }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import * as clipboard from './clipboard';
 import * as ops from './ops';
+import { bounds } from './snap';
 import { formatScene } from './format';
 import {
   cleanHover, depthSort, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueId, validateScene,
@@ -351,6 +352,35 @@ export function useEditor() {
     mapPieces([...delays.keys()], p => ({ ...p, delay: delays.get(p.id) || undefined }));
   };
 
+  // Hand assembly: a row of copies in one step, gravity, matching sizes.
+  const repeat = (axis: ops.Axis, count: number, gap: number, ids = sel.current) => {
+    const s = cur.current && latest.current[cur.current], pieces = piecesOf(ids);
+    if (!s || !pieces.length || count < 2) return;
+    let next = s;
+    const made: string[] = [];
+    for (const offset of ops.repeatOffsets(pieces, axis, count, gap)) {
+      const pasted = clipboard.paste(next, pieces, offset);
+      next = pasted.scene;
+      made.push(...pasted.ids);
+    }
+    change(() => next);
+    setSelection([...ids, ...made]);
+  };
+  const drop = (ids = sel.current) => {
+    const s = cur.current && latest.current[cur.current], moving = unlocked(ids);
+    if (!s || !moving.length) return;
+    const boxes = shown(moving.map(p => p.id)), group = bounds([...boxes.values()]);
+    const others = s.objects.filter(p => !p.hidden && !ids.includes(p.id)).map(p => mode === 'hover' ? hoverBox(p) : pick(p));
+    const dz = ops.dropHeight(group, others, GROUND) - group.z;
+    if (dz) updatePieces(moving.map(p => p.id), b => ({ z: b.z + dz }));
+  };
+  // Every selected block takes the size of the last one picked.
+  const matchSize = (keys: ('w' | 'd' | 'h')[] = ['w', 'd', 'h'], ids = sel.current) => {
+    const ref = shown([ids.at(-1)!]).get(ids.at(-1)!);
+    if (!ref || ids.length < 2) return;
+    updatePieces(ids.slice(0, -1), () => Object.fromEntries(keys.map(k => [k, ref[k]])));
+  };
+
   const rename = (id: string, next: string) => {
     if (!scene || !next || next === id || scene.objects.some(p => p.id === next)) return false;
     change(s => ({ ...s, objects: s.objects.map(p => p.id === id ? { ...p, id: next } : p) }));
@@ -421,7 +451,7 @@ export function useEditor() {
   return {
     files, templates, loaded, local, root, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
-    alignTo, distribute, mirror, rotate, stagger,
+    alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,
     add, duplicate, remove, copy, cut, copyForAgent, paste, reorder, toEdge, moveBefore, autoOrder, clearHover, rename,
     openFile, createFile, duplicateFile, importFile, renameFile, deleteFile,

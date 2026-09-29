@@ -65,6 +65,7 @@ export function App() {
       if (e.shiftKey && key === 'h') { editor.mirror('x'); return; }
       if (e.shiftKey && key === 'v') { editor.mirror('y'); return; }
       if (e.shiftKey && key === 'r') { editor.rotate(); return; }
+      if (key === 'g' && !e.shiftKey) { editor.drop(); return; }
       if (e.key === 'Enter' && selection.length === 1) { e.preventDefault(); editor.setRenaming(selection[0]); return; }
       // Tab walks the layers front to back, Shift+Tab back.
       const layers = [...scene?.objects ?? []].reverse().filter(p => !p.hidden);
