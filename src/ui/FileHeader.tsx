@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Boxes, ChevronDown } from 'lucide-react';
 import type { Editor } from '../editor';
 import { Menu, type MenuItem } from './Menu';
 
@@ -40,9 +40,7 @@ export function FileHeader({ editor, dark, onDark, onNew, onSeries, onAgent, onS
         const r = e.currentTarget.getBoundingClientRect();
         setMenu({ x: r.left, y: r.bottom + 4 });
       }}>
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-          <path d="M8 2.5 13 5.3v5.6L8 13.7 3 10.9V5.3Z" /><path d="M3 5.3 8 8.1l5-2.8M8 8.1v5.6" />
-        </svg>
+        <Boxes size={16} />
         <ChevronDown size={12} />
       </button>
       {renaming && current

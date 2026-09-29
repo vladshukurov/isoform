@@ -1,12 +1,11 @@
-import { Hand, MousePointer2, Redo2, Undo2 } from 'lucide-react';
+import { Box, Hand, Layers2, MousePointer2, Redo2, Undo2 } from 'lucide-react';
 import type { Editor, Tool } from '../editor';
-import { BlockIcon, PlateIcon } from './icons';
 
 const TOOLS: { tool: Tool; icon: React.ReactNode; title: string }[] = [
   { tool: 'move', icon: <MousePointer2 size={16} />, title: 'Выбор · V' },
   { tool: 'hand', icon: <Hand size={16} />, title: 'Рука · H' },
-  { tool: 'block', icon: <BlockIcon size={18} />, title: 'Блок · B — тяните по полу или по верху другого блока' },
-  { tool: 'plate', icon: <PlateIcon size={18} />, title: 'Плита · P' },
+  { tool: 'block', icon: <Box size={16} />, title: 'Блок · B — тяните по полу или по верху другого блока' },
+  { tool: 'plate', icon: <Layers2 size={16} />, title: 'Плита · P' },
 ];
 
 // The floating tool bar at the bottom of the canvas, as in Figma UI3.

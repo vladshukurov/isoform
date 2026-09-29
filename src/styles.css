@@ -203,3 +203,6 @@ button.tile:hover .tile-art { box-shadow: 0 0 0 2px var(--blue); }
 .keys { padding: 12px 16px 16px; display: grid; gap: 2px; }
 .keys div { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .keys dd kbd { color: var(--text); background: var(--field); border-radius: 4px; padding: 1px 6px; }
+
+/* Lucide icons a touch lighter, like Figma UI3 */
+svg.lucide { stroke-width: 1.6; flex: none; }

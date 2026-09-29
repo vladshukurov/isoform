@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, MoveUpRight, Scaling } from 'lucide-react';
+import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, MoveUpRight, Scaling } from 'lucide-react';
 import type { Editor } from '../editor';
 import { hoverKind, PLATE, type Piece } from '../model';
 import { pieceMenu } from './actions';
-import { BlockIcon, PlateIcon } from './icons';
 import { Menu, type MenuItem } from './Menu';
 
 type Drop = { id: string; above: boolean };
@@ -69,7 +68,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
             onDragLeave={() => setDrop(d => d?.id === p.id ? null : d)}
             onDrop={e => { e.preventDefault(); if (drop) place(drop); setDrop(null); dragging.current = []; }}
             onDragEnd={() => { setDrop(null); dragging.current = []; }}>
-            <span className="layer-icon">{p.h <= PLATE + 4 ? <PlateIcon /> : <BlockIcon />}</span>
+            <span className="layer-icon">{p.h <= PLATE + 4 ? <Layers2 size={14} /> : <Box size={14} />}</span>
             {editing === p.id
               ? <input className="layer-name" autoFocus defaultValue={p.id}
                   onClick={e => e.stopPropagation()}
