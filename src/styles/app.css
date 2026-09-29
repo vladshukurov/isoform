@@ -142,41 +142,18 @@ input.layer-name { border: 0; border-radius: var(--r-1); padding: 2px var(--s-2)
 .repeat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-2); margin-top: 2px; animation: fade var(--mid) var(--ease); }
 .repeat .seg, .repeat .btn { grid-column: 1 / -1; }
 
-/* Motion: the character, shown */
-.characters { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
-.character { display: grid; align-content: start; justify-items: start; gap: 3px; padding: var(--s-3); border-radius: var(--r-3); background: var(--field); text-align: left; }
-.character:hover { background: var(--field-hover); }
-.character[aria-checked="true"] { background: var(--surface-solid); box-shadow: 0 0 0 1.5px var(--ink); }
-.character b { font-weight: 600; }
-.character span { color: var(--muted); font-size: var(--t-xs); line-height: 14px; }
-.curve { width: 100%; height: 34px; margin-bottom: var(--s-1); overflow: visible; }
-.curve polyline { fill: none; stroke: var(--faint); stroke-width: 1.2; stroke-linecap: round; }
-.curve circle { fill: var(--ink); }
-.curve rect { fill: var(--hover-line); }
-.character[aria-checked="true"] .curve polyline { stroke: var(--muted); }
-
-/* Timeline: a ruler to scrub, a bar per animated block */
-.timeline-total { color: var(--faint); font: var(--t-xs) var(--mono); margin-left: var(--s-2); }
-.timeline-body { position: relative; display: grid; grid-template-columns: 76px 1fr; column-gap: var(--s-3); row-gap: 3px; align-items: center; }
-.timeline-corner .seg { margin: 0; }
-.timeline-corner .seg.is-sm button { height: 20px; padding: 0 5px; font-size: var(--t-xs); }
-.timeline-ruler { position: relative; height: 26px; cursor: ew-resize; border-bottom: 1px solid var(--line); touch-action: none; }
-.timeline-ruler i { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--line-strong); font: 9.5px var(--mono); font-style: normal; color: var(--faint); }
-.timeline-ruler i.is-major { height: 7px; }
-.timeline-ruler i.is-major::after { content: attr(data-t); }
-.timeline-ruler i:not(:empty) { text-indent: 3px; line-height: 0; }
-.timeline-head { position: absolute; top: 2px; bottom: -1px; width: 9px; margin-left: -4.5px; border-radius: 3px 3px 1px 1px; background: var(--guide); pointer-events: none; }
-.timeline-row { display: contents; }
-.timeline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); height: 22px; line-height: 22px; cursor: default; }
+/* Motion: the easing, and the delays */
+.curve { flex: none; overflow: visible; }
+.curve polyline { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+.timeline-rows { display: grid; gap: 3px; }
+.timeline-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: var(--s-3); height: 22px; }
+.timeline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .timeline-row.is-selected .timeline-name { color: var(--text); font-weight: 500; }
 .timeline-track { position: relative; height: 12px; background: var(--field); border-radius: var(--r-1); }
 .timeline-bar { position: absolute; top: 0; bottom: 0; background: var(--muted); border-radius: var(--r-1); cursor: ew-resize; transition: background-color var(--fast); }
 .timeline-bar:hover { background: var(--text); }
 .timeline-row.is-selected .timeline-bar { background: var(--ink); }
 .timeline-line { position: absolute; top: -3px; bottom: -3px; width: 1.5px; margin-left: -.75px; background: var(--guide); pointer-events: none; }
-.timeline-frame { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4); border-radius: var(--r-3); background: var(--field); color: var(--muted); font-size: var(--t-sm); }
-.timeline-frame span { flex: 1; }
-.wave-step { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-1) var(--s-2) var(--s-2) var(--s-4); color: var(--muted); font-size: var(--t-xs); }
 
 /* Bottom left: history */
 .history { position: absolute; left: var(--s-6); bottom: var(--s-6); display: flex; gap: 2px; padding: var(--s-2); border-radius: var(--r-6); }
@@ -218,8 +195,6 @@ input.layer-name { border: 0; border-radius: var(--r-1); padding: 2px var(--s-2)
 .dock-input textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: none; caret-color: var(--ink); font-size: var(--t-lg); line-height: 20px; padding: var(--s-2) 0 var(--s-2) 2px; color: var(--text); }
 .dock-input textarea::placeholder { color: var(--muted); }
 .dock-input textarea:disabled { opacity: 1; }
-.dock-input > .kbd { align-self: center; transition: opacity .2s; }
-.dock.is-focused .dock-input > .kbd { opacity: 0; }
 .dock-send { width: var(--h-md); height: var(--h-md); flex: none; justify-content: center; border-radius: var(--r-3); background: var(--ink); color: var(--on-ink); }
 .dock-send:disabled { opacity: 1; background: var(--field-hover); color: var(--faint); }
 /* The conversation */
@@ -356,7 +331,7 @@ button.tile:disabled .tile-art { opacity: .45; }
 .guide-dialog { padding: 0 var(--s-7) var(--s-7); }
 
 /* Who builds the scenes */
-.engines { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+.engines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
 .engine { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4) var(--s-5) var(--s-4) var(--s-4); border-radius: var(--r-5); background: var(--field); text-align: left; min-width: 0; }
 .engine:hover { background: var(--field-hover); }
 .engine[aria-checked="true"] { background: var(--surface-solid); box-shadow: 0 0 0 1.5px var(--ink), var(--shadow); }
@@ -408,8 +383,4 @@ button.tile:disabled .tile-art { opacity: .45; }
   .panel.left, .panel.right { max-height: 34vh; }
   .panel.right { top: auto; bottom: 164px; }
 }
-.connect-mark.is-codex { background: var(--field); }
-.connect-wait { display: inline-flex; align-items: center; gap: var(--s-3); color: var(--muted); }
 .turn-hint { color: var(--muted); font-size: var(--t-sm); line-height: 17px; animation: fade var(--mid) var(--ease); }
-.timeline-label { position: absolute; top: 3px; transform: translateX(-50%); font: 9.5px var(--mono); color: var(--faint); pointer-events: none; }
-.timeline-label:first-of-type { transform: none; }

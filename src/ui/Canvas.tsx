@@ -68,7 +68,8 @@ export function Canvas({ editor }: { editor: Editor }) {
   const locked = useMemo(() => new Set(objects.filter(p => p.locked).map(p => p.id)), [objects]);
   const selected = objects.filter(p => selection.includes(p.id));
 
-  const fitView = (only?: string[]) => {
+  // The view that frames these blocks (or the whole scene).
+  const framing = (only?: string[]) => {
     const all = objects.filter(p => !only?.length || only.includes(p.id)).flatMap(p => [pick(p), hoverBox(p)]);
     const points = all.length ? all.flatMap(b => vertices(b).map(project)) : [{ x: -260, y: -260 }, { x: 260, y: 200 }];
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
@@ -78,8 +79,33 @@ export function Canvas({ editor }: { editor: Editor }) {
     const room = only?.length ? .8 : .5, area = safeArea(size);
     // On narrow windows the scene may reach under the panels rather than shrink to a dot.
     const s = Math.max(.1, Math.min(Math.max(area.w, size.w * .6) * room / Math.max(w, 1), area.h * room / Math.max(h, 1), only?.length ? 4 : 1.5));
-    setView({ s, ox: area.x + area.w / 2 - s * (Math.min(...xs) + w / 2), oy: area.y + area.h / 2 - s * (Math.min(...ys) + h / 2) });
+    return { s, ox: area.x + area.w / 2 - s * (Math.min(...xs) + w / 2), oy: area.y + area.h / 2 - s * (Math.min(...ys) + h / 2) };
   };
+  const fitView = (only?: string[]) => setView(framing(only));
+  // The camera glides to a block: pan and zoom together, calm, 360 ms.
+  const glide = useRef(0);
+  const flyTo = (ids: string[]) => {
+    const from = viewRef.current, to = framing(ids);
+    cancelAnimationFrame(glide.current);
+    if (!from) return setView(to);
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 360), k = 1 - (1 - t) ** 3;
+      // Zoom in log space, so the move feels even at any scale.
+      const s = Math.exp(Math.log(from.s) + (Math.log(to.s) - Math.log(from.s)) * k);
+      setView({ s, ox: from.ox + (to.ox - from.ox) * k, oy: from.oy + (to.oy - from.oy) * k });
+      if (t < 1) glide.current = requestAnimationFrame(step);
+    };
+    glide.current = requestAnimationFrame(step);
+  };
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  // Layers ask the camera to come to a block (double click on its icon).
+  useEffect(() => {
+    const onFocus = (e: Event) => flyTo((e as CustomEvent<string[]>).detail);
+    window.addEventListener('isoform:focus', onFocus);
+    return () => window.removeEventListener('isoform:focus', onFocus);
+  });
   const zoomAt = (factor: number, mx = size.w / 2, my = size.h / 2) => setView(v => {
     if (!v) return v;
     const s = Math.min(16, Math.max(.1, v.s * factor));
@@ -107,7 +133,7 @@ export function Canvas({ editor }: { editor: Editor }) {
       if (typing(e) || dialogOpen()) return;
       if (e.code === 'Space') { e.preventDefault(); setSpace(true); }
       if (e.shiftKey && e.code === 'Digit1') fitView();
-      if (e.shiftKey && e.code === 'Digit2' && selection.length) fitView(selection);
+      if (e.shiftKey && e.code === 'Digit2' && selection.length) flyTo(selection);
       if (e.shiftKey && e.code === 'Digit0') setView(v => v && { ...v, s: 1 });
       if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomAt(1.25); }
       if ((e.metaKey || e.ctrlKey) && e.key === '-') { e.preventDefault(); zoomAt(.8); }
@@ -378,7 +404,7 @@ export function Canvas({ editor }: { editor: Editor }) {
           x={Math.min(drag.x, drag.to.x)} y={Math.min(drag.y, drag.to.y)}
           width={Math.abs(drag.to.x - drag.x)} height={Math.abs(drag.to.y - drag.y)} />}
       </svg>
-      {mode === 'hover' && <div className="mode-chip"><i />{scrub === null ? 'Состояние при наведении' : `Кадр ${scrub.toFixed(2).replace('.', ',')} с`}</div>}
+      {mode === 'hover' && <div className="mode-chip"><i />{scrub === null ? 'Состояние при наведении' : `Проигрывается · ${scrub.toFixed(2).replace('.', ',')} с`}</div>}
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
       {!objects.length && tool === 'move' && !editor.claude.running && <div className="canvas-empty">
         <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>

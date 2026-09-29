@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, Plus, X } from 'lucide-react';
 import { ClaudeMark } from './ClaudeMark';
 import { CardPreview } from '../CardPreview';
@@ -7,21 +8,41 @@ import type { Scene } from '../model';
 import { Button, IconButton, Kbd } from './kit';
 
 export function Dialog({ title, onClose, children, wide }: { title: string; onClose?: () => void; children: ReactNode; wide?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  // The dialog takes the focus (so Esc and Tab are its own, wherever it was
+  // opened from) and gives it back when it closes.
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    const before = document.activeElement as HTMLElement | null;
+    if (!box.current?.contains(document.activeElement)) box.current?.focus();
+    return () => before?.focus?.();
+  }, []);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose && !document.querySelector('.menu')) { e.stopPropagation(); e.preventDefault(); onClose(); }
+      // Tab stays inside.
+      if (e.key === 'Tab' && box.current) {
+        const items = [...box.current.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, a[href], [tabindex]:not([tabindex="-1"])')];
+        if (!items.length) return;
+        const first = items[0], last = items.at(-1)!;
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === box.current)) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
   }, [onClose]);
-  return (
+  // Portalled to <body>: a dialog opened from the dock is not part of the dock.
+  return createPortal(
     <div className="backdrop" onPointerDown={e => { if (e.target === e.currentTarget) onClose?.(); }}>
-      <div className={`dialog${wide ? ' is-wide' : ''}`} role="dialog" aria-label={title}>
+      <div ref={box} tabIndex={-1} className={`dialog${wide ? ' is-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <h2>{title}</h2>
           {onClose && <IconButton label="Закрыть" tip={false} onClick={onClose}><X size={14} /></IconButton>}
         </header>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -72,7 +93,7 @@ const KEYS: [string, [string, string][]][] = [
   ['Блоки', [['← → ↑ ↓', 'Сдвиг по X / Y'], ['Alt ↑ ↓', 'Сдвиг по высоте'], ['⌘C · ⌘X · ⌘V', 'Копировать / вырезать / вставить'],
     ['⌘D', 'Дублировать'], ['⌘G · ⇧⌘G', 'Сгруппировать / разгруппировать'], ['Второй клик', 'Блок внутри группы'], ['⌫', 'Удалить'], ['⇧H · ⇧V', 'Отразить по X / Y'], ['⇧R', 'Повернуть на 90°'], ['G', 'На опору'],
     ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'], ['⇧⌘H', 'Скрыть'], ['⇧⌘L', 'Заблокировать']]],
-  ['Слои и файл', [['Tab · ⇧Tab', 'Следующий / предыдущий слой'], ['Enter', 'Переименовать'], ['1 · 2', 'Дизайн / наведение'],
+  ['Слои и файл', [['Tab · ⇧Tab', 'Следующий / предыдущий слой'], ['Двойной клик по иконке', 'Показать слой на холсте'], ['Enter', 'Переименовать'], ['1 · 2', 'Дизайн / наведение'],
     ['⌘O', 'Открыть JSON'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть']]],
 ];
 

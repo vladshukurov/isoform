@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check } from 'lucide-react';
+import { Check, Ellipsis } from 'lucide-react';
 
 export type MenuItem =
-  | { label: string; shortcut?: string; checked?: boolean; disabled?: boolean; danger?: boolean; onSelect: () => void }
+  // `more`: a ⋯ on the row that opens the item's own actions (delete a conversation).
+  | { label: string; shortcut?: string; checked?: boolean; disabled?: boolean; danger?: boolean; onSelect: () => void; more?: MenuItem[] }
   | { heading: string }
   | 'separator';
 
@@ -12,6 +13,7 @@ export type MenuItem =
 export function Menu({ x, y, items, onClose, header, above }: { x: number; y: number; items: MenuItem[]; onClose: () => void; header?: ReactNode; above?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState({ x, y });
+  const [sub, setSub] = useState<{ x: number; y: number; row: number; items: MenuItem[] } | null>(null);
   // Keep the menu inside the window.
   useLayoutEffect(() => {
     const r = ref.current!.getBoundingClientRect();
@@ -20,7 +22,8 @@ export function Menu({ x, y, items, onClose, header, above }: { x: number; y: nu
     setAt({ x: Math.min(x, innerWidth - r.width - 8), y: Math.max(8, Math.min(top, innerHeight - r.height - 8)) });
   }, [x, y, above]);
   useEffect(() => {
-    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    // A press on any menu (this one, or the ⋯ menu it opened) is not outside.
+    const close = (e: Event) => { if (!(e.target as Element).closest?.('.menu')) onClose(); };
     // Arrows walk the items; Enter and Space press the focused one (they are buttons).
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
@@ -50,13 +53,30 @@ export function Menu({ x, y, items, onClose, header, above }: { x: number; y: nu
       {items.map((item, i) => item === 'separator'
         ? <hr key={i} />
         : 'heading' in item ? <div key={i} className="menu-heading">{item.heading}</div>
-        : <button key={i} role={item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={item.checked}
-            disabled={item.disabled} className={item.danger ? 'is-danger' : undefined}
-            onClick={() => { onClose(); item.onSelect(); }}>
-            <span className="menu-check">{item.checked && <Check size={12} />}</span>
-            <span className="menu-label">{item.label}</span>
-            {item.shortcut && <kbd>{item.shortcut}</kbd>}
-          </button>)}
+        : (() => {
+          const main = (
+            <button key={i} role={item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={item.checked}
+              disabled={item.disabled} className={item.danger ? 'is-danger' : undefined}
+              onClick={() => { onClose(); item.onSelect(); }}>
+              <span className="menu-check">{item.checked && <Check size={12} />}</span>
+              <span className="menu-label">{item.label}</span>
+              {item.shortcut && <kbd>{item.shortcut}</kbd>}
+            </button>
+          );
+          if (!item.more) return main;
+          // The row keeps its own ⋯: its actions open beside it; choosing one closes both menus.
+          const more = item.more.map(m => typeof m === 'object' && 'onSelect' in m ? { ...m, onSelect: () => { onClose(); m.onSelect(); } } : m);
+          return (
+            <div key={i} className={`menu-row${sub?.row === i ? ' is-open' : ''}`}>
+              {main}
+              <button className="menu-more" aria-label={`Ещё: ${item.label}`} aria-haspopup="menu"
+                onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setSub({ x: r.right + 6, y: r.top - 6, row: i, items: more }); }}>
+                <Ellipsis size={14} />
+              </button>
+            </div>
+          );
+        })())}
+      {sub && <Menu x={sub.x} y={sub.y} items={sub.items} onClose={() => setSub(null)} />}
     </div>,
     document.body,
   );

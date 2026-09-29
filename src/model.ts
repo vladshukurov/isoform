@@ -81,8 +81,6 @@ export function validateScene(input: unknown): Scene {
   return s;
 }
 
-// The members of a group, in painter order.
-export const groupOf = (scene: Scene, group: string) => scene.objects.filter(p => p.group === group);
 export function uniqueGroup(scene: Scene, base = 'group') {
   const taken = new Set(scene.objects.map(p => p.group).filter(Boolean));
   if (!taken.has(base)) return base;

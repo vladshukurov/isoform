@@ -9,7 +9,7 @@ import type { Editor } from '../editor';
 import { BOX_KEYS, hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
 import { Button, IconButton, Segmented, TextField } from './kit';
 import { NumberField } from './NumberField';
-import { Character, Timeline } from './Motion';
+import { Easing, Timeline } from './Motion';
 
 const FIELDS: [BoxKey, string][] = [['x', 'X'], ['y', 'Y'], ['z', 'Z'], ['w', 'W'], ['d', 'D'], ['h', 'H']];
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
@@ -44,12 +44,12 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
   return (
     <aside className="panel right surface">
       <Segmented label="Состояние" wide value={mode} onChange={editor.setMode}
-        options={[{ value: 'rest', label: 'Дизайн', kbd: '1' }, { value: 'hover', label: 'Наведение', kbd: '2' }]} />
+        options={[{ value: 'rest', label: 'Дизайн' }, { value: 'hover', label: 'Наведение' }]} />
       {scene.objects.length > 0 && <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}>
         <CardPreview scene={scene} hold={pinned || playing !== null} />
       </div>}
 
-      {hover && <Character editor={editor} />}
+      {hover && <Easing editor={editor} />}
 
       {selected.length > 1 && (
         <section>
@@ -64,10 +64,10 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
                 {(axis === 'z'
                   ? [['min', AlignVerticalJustifyEnd, 'вниз'], ['center', AlignVerticalJustifyCenter, 'по центру'], ['max', AlignVerticalJustifyStart, 'вверх']] as const
                   : [['min', AlignHorizontalJustifyStart, 'к началу'], ['center', AlignHorizontalJustifyCenter, 'по центру'], ['max', AlignHorizontalJustifyEnd, 'к концу']] as const).map(([edge, Icon, tip]) => (
-                  <IconButton key={edge} label={`${axis === 'z' ? 'По высоте' : axis.toUpperCase()} ${tip}`}
+                  <IconButton key={edge} tip label={`${axis === 'z' ? 'По высоте' : axis.toUpperCase()} ${tip}`}
                     onClick={() => editor.alignTo(axis, edge)}><Icon size={14} /></IconButton>
                 ))}
-                <IconButton label={`Равные промежутки по ${axis === 'z' ? 'высоте' : axis.toUpperCase()}${selected.length < 3 ? ' — нужно от трёх блоков' : ''}`}
+                <IconButton tip label={`Равные промежутки по ${axis === 'z' ? 'высоте' : axis.toUpperCase()}${selected.length < 3 ? ' — нужно от трёх блоков' : ''}`}
                   disabled={selected.length < 3} onClick={() => editor.distribute(axis)}>{axis === 'z' ? <AlignVerticalSpaceAround size={14} /> : <AlignHorizontalSpaceAround size={14} />}</IconButton>
               </div>
             ))}
@@ -101,11 +101,11 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
       {!hover && selected.length > 0 && !allLocked && (
         <section className="transform">
           <div className="tool-row">
-              <IconButton variant="field" label="На опору" kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></IconButton>
-              <IconButton variant="field" label="Повторить" pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></IconButton>
-              <IconButton variant="field" label="Отразить по X" kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></IconButton>
-              <IconButton variant="field" label="Отразить по Y" kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></IconButton>
-              <IconButton variant="field" label="Повернуть на 90°" kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></IconButton>
+              <IconButton variant="field" tip label="На опору" kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></IconButton>
+              <IconButton variant="field" tip label="Повторить" pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></IconButton>
+              <IconButton variant="field" tip label="Отразить по X" kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></IconButton>
+              <IconButton variant="field" tip label="Отразить по Y" kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></IconButton>
+              <IconButton variant="field" tip label="Повернуть на 90°" kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></IconButton>
             </div>
           {repeating && (
             <div className="repeat">
@@ -123,14 +123,10 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         <section>
           <div className="section-head">
             <h3>Задержка</h3>
-            <IconButton label="Убрать наведение" disabled={!selected.some(p => p.hover)}
+            <IconButton tip label="Убрать наведение" disabled={!selected.some(p => p.hover)}
               onClick={() => editor.clearHover(ids)}><RotateCcw size={14} /></IconButton>
           </div>
-          <div className="delay">
-            <input type="range" className="slider" min={0} max={1} step={.02} value={common(p => p.delay ?? 0) ?? 0}
-              style={{ '--v': `${(common(p => p.delay ?? 0) ?? 0) * 100}%` } as React.CSSProperties}
-              onPointerDown={editor.checkpoint}
-              onChange={e => setDelay(+e.target.value, false)} />
+          <div className="fields">
             <NumberField label="с" value={common(p => p.delay ?? 0)} step={.02} min={0}
               onCommit={v => setDelay(v)} onScrubStart={editor.checkpoint} onScrub={v => setDelay(v, false)} />
           </div>

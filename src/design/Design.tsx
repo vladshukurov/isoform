@@ -19,7 +19,7 @@ import { LayersPanel } from '../ui/LayersPanel';
 import { NumberField } from '../ui/NumberField';
 import { ThreadView } from '../ui/Thread';
 import { Engines, Guide } from '../ui/Welcome';
-import { Character, Timeline } from '../ui/Motion';
+import { Easing, Timeline } from '../ui/Motion';
 import { connection, editor } from './mock';
 
 const scene = validateScene(storage);
@@ -344,10 +344,10 @@ function Patterns() {
       </div>
     </Section>
 
-    <Section id="engines" title="Кто собирает" lead="Три пути: Claude Code и Codex работают на компьютере по подписке человека, ключ API — по оплате за использование. У каждой карточки — её состояние.">
+    <Section id="engines" title="Кто собирает" lead="Два пути: Claude Code на компьютере по подписке человека или ключ API с оплатой за использование. У каждой карточки — её состояние.">
       <div className="ds-stack">
-        <Engines c={c({ local: { available: true, loggedIn: true, version: '2.1.197', codex: { available: false } } })} />
-        <Engines c={c({ engine: 'codex', need: 'login', ready: false, local: { available: true, loggedIn: false, codex: { available: true, loggedIn: false } } })} />
+        <Engines c={c({ local: { available: true, loggedIn: true, version: '2.1.197' } })} />
+        <Engines c={c({ engine: 'api', need: 'key', ready: false, local: { available: true, loggedIn: false } })} />
       </div>
     </Section>
 
@@ -363,9 +363,6 @@ function Patterns() {
         <Cell name="ждём код" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'login', ready: false, login: { phase: 'code', url: '#' } })} focus={false} /></Stage></Cell>
         <Cell name="код не подошёл" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'login', ready: false, login: { phase: 'code', url: '#', error: 'Код не подошёл — попробуйте ещё раз' } })} focus={false} /></Stage></Cell>
         <Cell name="ключ API" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'api', need: 'key', ready: false })} /></Stage></Cell>
-        <Cell name="Codex не установлен" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'install', ready: false })} /></Stage></Cell>
-        <Cell name="Codex — вход в ChatGPT" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'login', ready: false })} /></Stage></Cell>
-        <Cell name="Codex — ждём браузер" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'login', ready: false, login: { phase: 'waiting', url: '#' } })} /></Stage></Cell>
       </div>
     </Section>
 
@@ -398,7 +395,6 @@ function Patterns() {
                 <div className="dock-input">
                   {chip}
                   <div className="dock-field"><textarea rows={1} readOnly placeholder={busy ? 'Claude работает' : 'Добавь крышку, которая приподнимается'} disabled={busy} /></div>
-                  <Kbd>⌘K</Kbd>
                   <button className="dock-send" aria-label={busy ? 'Остановить' : 'Отправить'} disabled={!busy}>{busy ? '■' : '↵'}</button>
                 </div>
               </div>
@@ -408,10 +404,10 @@ function Patterns() {
       </div>
     </Section>
 
-    <Section id="motion-tool" title="Движение" lead="Вкладка «Наведение»: характер движения показан кривой, а не назван; таймлайн — линейка, по которой можно протянуть кадр на холсте, ▶ проигрывает на холсте и в карточке, волна задержек — в пять порядков. Всё в пределах того, что играет сайт: одна кривая на сцену, фиксированная длительность, задержка на блок.">
+    <Section id="motion-tool" title="Движение" lead="Вкладка «Наведение»: кривая под общепринятым именем (Ease in-out, Ease out) и задержки — полоски тянутся мышью, ▶ проигрывает на холсте и в карточке, волна раздаёт задержки сзади вперёд. Всё в пределах того, что играет сайт.">
       <div className="ds-row">
         <Stage className="ds-panel-stage"><aside className="panel right surface ds-panel ds-motion-panel">
-          <Character editor={editor({ scene, change: noop })} />
+          <Easing editor={editor({ scene, change: noop })} />
           <Timeline editor={editor({ scene: layered(s => ({ ...s, objects: s.objects.map((p, i) => i >= 2 && i <= 4 ? { ...p, hover: { d: 40 }, delay: (i - 2) * .08 } : p) })), selection: [], scrub: .32, setScrub: noop })} onPlay={noop} />
         </aside></Stage>
       </div>

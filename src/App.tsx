@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownUp, CircleAlert, FileUp, Redo2, Undo2, X } from 'lucide-react';
+import { CircleAlert, FileUp, Redo2, Undo2, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
@@ -152,7 +152,6 @@ export function App() {
         {scene && <aside className="panel left surface">
           <div className="panel-title">
             <h3>Слои</h3>
-            <IconButton label="Порядок по глубине" onClick={editor.autoOrder} disabled={!scene.objects.length}><ArrowDownUp size={14} /></IconButton>
           </div>
           <LayersPanel editor={editor} />
         </aside>}

@@ -55,13 +55,16 @@ export function LayersPanel({ editor }: { editor: Editor }) {
       </EmptyState>
     </div>
   );
+  // Double click on a row's icon brings the camera to it.
+  const focus = (ids: string[]) => window.dispatchEvent(new CustomEvent('isoform:focus', { detail: ids }));
+
   // A group's header row: fold, select all its blocks, rename, hide, lock, drag.
   const groupRow = (name: string) => {
     const members = scene.objects.filter(o => o.group === name), ids = members.map(o => o.id);
     const all = ids.every(id => selection.includes(id)), open = !folded.has(name);
     const hidden = members.every(o => o.hidden), locked = members.every(o => o.locked);
     return (
-      <div key={`group:${name}`} className={['layer', 'is-group', all && 'is-selected', hidden && 'is-hidden', locked && 'is-locked'].filter(Boolean).join(' ')} draggable={naming !== name}
+      <div key={`group:${name}`} className={['layer', 'is-group', all && 'is-selected', all && open && 'join-down', hidden && 'is-hidden', locked && 'is-locked'].filter(Boolean).join(' ')} draggable={naming !== name}
         onClick={e => editor.setSelection(e.metaKey || e.ctrlKey ? (all ? selection.filter(i => !ids.includes(i)) : [...new Set([...selection, ...ids])]) : ids)}
         onDoubleClick={() => setNaming(name)}
         onContextMenu={e => { e.preventDefault(); editor.setSelection(ids); setMenu({ x: e.clientX, y: e.clientY, items: pieceMenu(editor, ids) }); }}
@@ -73,7 +76,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
           onClick={e => { e.stopPropagation(); setFolded(f => { const n = new Set(f); open ? n.add(name) : n.delete(name); return n; }); }}>
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
-        <span className="layer-icon">{open ? <FolderOpen size={14} /> : <Folder size={14} />}</span>
+        <span className="layer-icon" onDoubleClick={e => { e.stopPropagation(); focus(ids); }}>{open ? <FolderOpen size={14} /> : <Folder size={14} />}</span>
         {naming === name
           ? <input className="layer-name" autoFocus defaultValue={name} onClick={e => e.stopPropagation()}
               onBlur={e => { editor.renameGroup(name, e.target.value.trim()); setNaming(null); }}
@@ -81,9 +84,9 @@ export function LayersPanel({ editor }: { editor: Editor }) {
               onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
           : <span className="layer-name">{name}</span>}
         <span className="layer-count">{members.length}</span>
-        <button className={`layer-toggle${locked ? ' is-on' : ''}`} aria-label={locked ? 'Разблокировать группу' : 'Заблокировать группу'} data-tip={locked ? 'Разблокировать' : 'Заблокировать'}
+        <button className={`layer-toggle${locked ? ' is-on' : ''}`} aria-label={locked ? 'Разблокировать группу' : 'Заблокировать группу'}
           onClick={e => { e.stopPropagation(); editor.toggle(ids, 'locked'); }}>{locked ? <Lock size={14} /> : <LockOpen size={14} />}</button>
-        <button className={`layer-toggle${hidden ? ' is-on' : ''}`} aria-label={hidden ? 'Показать группу' : 'Скрыть группу'} data-tip={hidden ? 'Показать' : 'Скрыть'}
+        <button className={`layer-toggle${hidden ? ' is-on' : ''}`} aria-label={hidden ? 'Показать группу' : 'Скрыть группу'}
           onClick={e => { e.stopPropagation(); editor.toggle(ids, 'hidden'); }}>{hidden ? <EyeOff size={14} /> : <Eye size={14} />}</button>
       </div>
     );
@@ -97,7 +100,8 @@ export function LayersPanel({ editor }: { editor: Editor }) {
         const kind = hoverKind(p);
         const isSelected = selection.includes(p.id);
         // Neighbouring selected rows join into one block, as in Figma.
-        const joinUp = isSelected && selection.includes(list[i - 1]?.id), joinDown = isSelected && selection.includes(list[i + 1]?.id);
+        const firstInGroup = !!p.group && list[i - 1]?.group !== p.group;
+        const joinUp = isSelected && (selection.includes(list[i - 1]?.id) || (firstInGroup && scene.objects.filter(o => o.group === p.group).every(o => selection.includes(o.id)))), joinDown = isSelected && selection.includes(list[i + 1]?.id);
         const cls = ['layer', p.group && 'is-member', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden', p.locked && 'is-locked',
           drop?.id === p.id && (drop.above ? 'drop-above' : 'drop-below')].filter(Boolean).join(' ');
         return [...head, (
@@ -123,7 +127,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
             onDragLeave={() => setDrop(d => d?.id === p.id ? null : d)}
             onDrop={e => { e.preventDefault(); if (drop) place(drop); setDrop(null); dragging.current = []; }}
             onDragEnd={() => { setDrop(null); dragging.current = []; }}>
-            <span className="layer-icon"><Glyph box={p} /></span>
+            <span className="layer-icon" onDoubleClick={e => { e.stopPropagation(); editor.setSelection([p.id]); focus([p.id]); }}><Glyph box={p} /></span>
             {editing === p.id
               ? <input className="layer-name" autoFocus defaultValue={p.id}
                   onClick={e => e.stopPropagation()}
@@ -141,11 +145,11 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                 <i style={{ left: `${(p.delay ?? 0) / total * 100}%`, width: `${ENTER / total * 100}%` }} />
               </span>}
             </span>
-            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'} data-tip={p.locked ? 'Разблокировать' : 'Заблокировать'} data-kbd="⇧⌘L"
+            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'locked'); }}>
               {p.locked ? <Lock size={14} /> : <LockOpen size={14} />}
             </button>
-            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'} data-tip={p.hidden ? 'Показать' : 'Скрыть'} data-kbd="⇧⌘H"
+            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'hidden'); }}>
               {p.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>

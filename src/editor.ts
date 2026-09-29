@@ -7,7 +7,7 @@ import * as ops from './ops';
 import { bounds } from './snap';
 import { formatScene } from './format';
 import {
-  cleanHover, depthSort, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueGroup, uniqueId, validateScene,
+  cleanHover, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueGroup, uniqueId, validateScene,
   type Box, type Piece, type Scene,
 } from './model';
 
@@ -355,7 +355,6 @@ export function useEditor() {
     const at = before === null ? rest.length : rest.findIndex(p => p.id === before);
     return { ...s, objects: [...rest.slice(0, at), ...moving, ...rest.slice(at)] };
   });
-  const autoOrder = () => change(s => ({ ...s, objects: depthSort(s.objects) }));
 
   // Groups: one level, members side by side in the painter order, placed
   // where the frontmost of them was. Grouping blocks of other groups takes
@@ -547,7 +546,7 @@ export function useEditor() {
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,
-    add, duplicate, remove, copy, cut, copyForAgent, paste, reorder, toEdge, moveBefore, autoOrder, clearHover, rename,
+    add, duplicate, remove, copy, cut, copyForAgent, paste, reorder, toEdge, moveBefore, clearHover, rename,
     group, ungroup, renameGroup, withGroups,
     openFile, createFile, duplicateFile, importFile, renameFile, deleteFile,
     undo: () => step('undo'), redo: () => step('redo'),

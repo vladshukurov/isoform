@@ -80,7 +80,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     const job: Job = {
       prompt, file, selection, signal: abort.signal, progress, draft,
       // From scratch Claude starts from nothing.
-      scene: fresh ? { ...scene, objects: [] } : scene, agent: engine === 'codex' ? 'codex' : 'claude', model: connection.model,
+      scene: fresh ? { ...scene, objects: [] } : scene,
       session: talk.session, onSession: id => talks.setSession(file, talk.id, id),
     };
     let outcome: { result?: string; error?: Problem };
@@ -89,7 +89,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
       outcome = { result };
     } catch (error) {
       const message = (error as Error).message;
-      outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message, engine === 'codex' ? 'ChatGPT' : 'Claude') };
+      outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message) };
       // A session Claude Code no longer knows starts over next time.
       if (/session|сесси/i.test(message)) talks.setSession(file, talk.id, undefined);
     }

@@ -11,9 +11,7 @@ export type Job = {
   progress: (step: Step) => void;
   // A draft to show on the canvas; `final` drafts are complete scenes.
   draft: (scene: Scene, final: boolean) => void;
-  // An agent on this computer: which one, the conversation to continue, and where to report its id.
-  agent?: 'claude' | 'codex';
-  model?: 'opus' | 'sonnet';
+  // Claude Code: the conversation to continue, and where to report its id.
   session?: string;
   onSession?: (id: string) => void;
 };

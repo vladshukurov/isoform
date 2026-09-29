@@ -16,7 +16,7 @@ function Breathing({ scene }: { scene: Scene }) {
   return <CardPreview scene={scene} hold={on} />;
 }
 
-// How to work with the agent, in four cards; on the first screen and from the dock.
+// How to work with Claude, in four cards; on the first screen and from the dock.
 export function Guide() {
   return (
     <div className="guide">
@@ -49,12 +49,11 @@ export function Engines({ c }: { c: Connection }) {
   const state = (id: EngineId) => {
     if (id === 'api') return c.key ? { text: 'ключ сохранён', ok: true } : { text: 'нужен ключ', ok: false };
     if (!c.local) return { text: 'проверяем', ok: false, checking: true };
-    const cli = id === 'codex' ? c.local.codex : c.local;
-    return !cli?.available ? { text: 'не установлен', ok: false } : !cli.loggedIn ? { text: 'нужен вход', ok: false } : { text: 'готов', ok: true };
+    return !c.local.available ? { text: 'не установлен', ok: false } : !c.local.loggedIn ? { text: 'нужен вход', ok: false } : { text: 'готов', ok: true };
   };
   return (
     <div className="engines" role="radiogroup" aria-label="Кто собирает сцены">
-      {(['local', 'codex', 'api'] as const).filter(id => !c.browserOnly || id === 'api').map(id => {
+      {(['local', 'api'] as const).filter(id => !c.browserOnly || id === 'api').map(id => {
         const s = state(id);
         return (
           <button key={id} role="radio" aria-checked={c.engine === id} className="engine" onClick={() => c.choose(id)}>
@@ -77,7 +76,6 @@ export function Welcome({ editor, onClose }: { editor: Editor; onClose?: () => v
   const hero = editor.templates.storage ?? templates[0]?.[1];
   const start = (template?: string) => { editor.createFile(template); onClose?.(); };
   const withAgent = () => { editor.createFile(); claude.setOpen(true); onClose?.(); };
-  const agentName = c.engine === 'codex' ? 'Codex' : 'Claude';
 
   return (
     <Dialog title="Начало работы" onClose={onClose} wide>
@@ -86,14 +84,14 @@ export function Welcome({ editor, onClose }: { editor: Editor; onClose?: () => v
           <div className="welcome-hero-text">
             <span className="logo"><Mark size={22} /></span>
             <h1>Изометрия для Passwork — словами и руками</h1>
-            <p>Опишите идею — Claude или Codex соберёт сцену из блоков прямо на холсте. Потом доведите её руками: сдвиньте детали, задайте движение при наведении и скачайте SVG для сайта.</p>
+            <p>Опишите идею — Claude соберёт сцену из блоков прямо на холсте. Потом доведите её руками: сдвиньте детали, задайте движение при наведении и скачайте SVG для сайта.</p>
             <span className="welcome-note"><MousePointerClick size={14} />Справа — сцена серии: так она оживает на сайте при наведении</span>
           </div>
           {hero && <div className="welcome-hero-art"><Breathing scene={hero} /></div>}
         </section>
 
         <section className="welcome-block">
-          <h2><Sparkles size={15} />Как работать с Claude и Codex</h2>
+          <h2><Sparkles size={15} />Как работать с Claude</h2>
           <Guide />
         </section>
 
@@ -107,8 +105,8 @@ export function Welcome({ editor, onClose }: { editor: Editor; onClose?: () => v
           <h2><span className="welcome-num">2</span>Начните сцену</h2>
           <div className="tiles is-compact">
             <button className="tile" onClick={withAgent} disabled={!c.ready}>
-              <div className="tile-art tile-blank tile-agent"><EngineMark engine={c.engine === 'api' ? 'local' : c.engine} size={24} /></div>
-              <span>{c.ready ? `Собрать с ${agentName}` : 'Сначала подключите'}</span>
+              <div className="tile-art tile-blank tile-agent"><EngineMark engine="local" size={24} /></div>
+              <span>{c.ready ? 'Собрать с Claude' : 'Сначала подключите'}</span>
             </button>
             <button className="tile" onClick={() => start()}>
               <div className="tile-art tile-blank"><Plus size={20} /></div>

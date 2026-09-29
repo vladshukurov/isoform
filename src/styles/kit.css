@@ -111,19 +111,33 @@ kbd { font: var(--t-xs) var(--mono); color: var(--muted); }
 .menu button { display: flex; width: 100%; height: 30px; padding: 0 var(--s-4) 0 var(--s-1); gap: var(--s-1); border-radius: var(--r-2); outline: none; }
 .menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--field-hover); }
 .menu button.is-danger { color: var(--danger); }
-.menu button.is-danger:hover:not(:disabled), .menu button.is-danger:focus-visible { background: var(--danger); color: var(--on-danger); }
+/* Destructive items stay quiet: red text, the usual hover. */
+.menu button.is-danger:hover:not(:disabled), .menu button.is-danger:focus-visible { background: var(--field-hover); color: var(--danger); }
+.menu-row { position: relative; display: flex; align-items: center; }
+.menu-row > button:first-child { flex: 1; min-width: 0; padding-right: 30px; }
+.menu .menu-more { position: absolute; right: 3px; width: var(--h-xs); height: var(--h-xs); padding: 0; justify-content: center; border-radius: var(--r-1); color: var(--muted); opacity: 0; }
+.menu-row:hover .menu-more, .menu-row.is-open .menu-more, .menu .menu-more:focus-visible { opacity: 1; }
+.menu .menu-more:hover { background: var(--field-hover); color: var(--text); }
+.menu-row.is-open > button:first-child { background: var(--field-hover); }
 .menu-heading { padding: var(--s-2) var(--s-4) 3px 24px; font-size: var(--t-xs); color: var(--muted); }
 .menu-check { width: 18px; display: flex; justify-content: center; }
 .menu-label { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px calc(-1 * var(--s-2)); }
 
-/* Tooltip */
+/* Tooltip: slides in 3px from the element's side; between neighbours it
+   glides over instead of fading in again; leaves with a quick fade. */
 .tooltip {
   position: fixed; z-index: 40; pointer-events: none; display: flex; gap: var(--s-3); align-items: center;
   max-width: 260px; padding: 5px 9px; border-radius: var(--r-2); background: var(--ink); color: var(--on-ink); box-shadow: var(--shadow-pop);
-  animation: fade .12s var(--ease); font-weight: 500;
+  font-weight: 500; line-height: 16px;
 }
+.tooltip.is-below { animation: tip-below .14s var(--ease) both; }
+.tooltip.is-above { animation: tip-above .14s var(--ease) both; }
+.tooltip.is-instant { animation: none; transition: left .12s var(--ease), top .12s var(--ease); }
+.tooltip.is-leaving { opacity: 0; transition: opacity 90ms linear; }
 .tooltip kbd { color: inherit; opacity: .55; }
+@keyframes tip-below { from { opacity: 0; transform: translateY(-3px); } }
+@keyframes tip-above { from { opacity: 0; transform: translateY(3px); } }
 
 /* Toast: ink for news, red for trouble */
 .toast {
@@ -160,3 +174,4 @@ kbd { font: var(--t-xs) var(--mono); color: var(--muted); }
 .field.is-focus { background: var(--field-hover); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .is-focus-ring { outline: 2px solid var(--ink); outline-offset: 2px; }
 .menu button.is-hover-row { background: var(--field-hover); }
+.dialog:focus { outline: none; }

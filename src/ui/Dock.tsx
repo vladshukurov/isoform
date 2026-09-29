@@ -3,7 +3,6 @@ import { ArrowUp, Box, ChevronDown, CircleHelp, Folder, CornerDownLeft, Hand, La
 import type { Editor, Tool } from '../editor';
 import { ClaudeMark } from './ClaudeMark';
 import { Connect } from './Connect';
-import { ENGINES } from '../ai/connection';
 import { Chip, IconButton, Kbd, Segmented } from './kit';
 import { Menu, type MenuItem } from './Menu';
 import { Thread } from './Thread';
@@ -115,25 +114,18 @@ export function Dock({ editor }: { editor: Editor }) {
   const setup = !!c.need && !running;
   // In the field the conversation is always there, even a brand new one.
   const shown = focused || c.signingIn || running;
-  const who = ENGINES[c.engine].name.replace('Ключ Anthropic API', 'Claude');
-  const placeholder = running ? `${who} работает` : c.need ? `Подключите ${who}` : '';
+  const placeholder = running ? 'Claude работает' : c.need ? 'Подключите Claude' : '';
   // One menu for the conversations and who does the work.
   const items: MenuItem[] = [
-    ...(claude.talks.length ? [{ heading: 'Разговоры' }, ...claude.talks.map(t => ({ label: t.title, checked: t.id === claude.talk?.id, onSelect: () => { claude.openConversation(t.id); focus(); } })),
-      { label: 'Новый разговор', onSelect: () => { claude.newConversation(); focus(); } },
-      ...(claude.talk ? [{ label: 'Удалить этот разговор', danger: true, onSelect: () => { claude.deleteConversation(claude.talk!.id); focus(); } }] : []),
-      'separator' as const] : []),
+    ...(claude.talks.length ? [{ heading: 'Разговоры' },
+      ...claude.talks.map(t => ({ label: t.title, checked: t.id === claude.talk?.id, onSelect: () => { claude.openConversation(t.id); focus(); },
+        more: [{ label: 'Удалить разговор', danger: true, onSelect: () => { claude.deleteConversation(t.id); focus(); } }] })),
+      { label: 'Новый разговор', onSelect: () => { claude.newConversation(); focus(); } }, 'separator' as const] : []),
     { heading: 'Собирает' },
-    ...(['local', 'codex'] as const).map(id => {
-      const cli = id === 'codex' ? c.local?.codex : c.local;
-      return { label: `${ENGINES[id].name}${!cli?.available ? ' — не установлен' : !cli.loggedIn ? ' — нужен вход' : ` — ${ENGINES[id].account}`}`,
-        checked: c.engine === id, disabled: c.browserOnly, onSelect: () => { c.choose(id); focus(); } };
-    }),
+    { label: `Claude Code${!c.local?.available ? ' — не установлен' : !c.local.loggedIn ? ' — нужен вход' : ' — подписка Claude'}`,
+      checked: c.engine === 'local', disabled: c.browserOnly, onSelect: () => { c.choose('local'); focus(); } },
     { label: 'Ключ Anthropic API', checked: c.engine === 'api', onSelect: () => { c.choose('api'); focus(); } },
-    ...(c.engine === 'local' ? [{ heading: 'Модель Claude Code' },
-      { label: 'Opus — строит лучше', checked: c.model === 'opus', onSelect: () => { c.setModel('opus'); focus(); } },
-      { label: 'Sonnet — отвечает быстрее', checked: c.model === 'sonnet', onSelect: () => { c.setModel('sonnet'); focus(); } }] : []),
-    ...(c.engine !== 'api' && c.agent?.loggedIn ? ['separator' as const, { label: 'Войти другим аккаунтом', onSelect: c.switchAccount }] : []),
+    ...(c.engine === 'local' && c.local?.loggedIn ? ['separator' as const, { label: 'Войти другим аккаунтом', onSelect: c.switchAccount }] : []),
     ...(c.key ? ['separator' as const, { label: 'Забыть ключ', danger: true, onSelect: c.forgetKey }] : []),
   ];
 
@@ -154,9 +146,9 @@ export function Dock({ editor }: { editor: Editor }) {
                   <ClaudeMark size={14} /><span>{!setup && claude.talks.length > 1 ? claude.talk?.title ?? 'Новый разговор' : 'Claude'}</span><ChevronDown size={12} />
                 </button>
                 {!setup && hasScene && <Segmented label="Что делает Claude" size="sm" value={mode} onChange={setMode} disabled={running}
-                  options={[{ value: 'edit', label: 'Править', tip: 'Поправить то, что есть' }, { value: 'new', label: 'С нуля', tip: 'Собрать новую сцену на месте этой' }]} />}
-                <IconButton label="Как работать с Claude и Codex" onMouseDown={e => e.preventDefault()} onClick={() => setGuide(true)}><CircleHelp size={14} /></IconButton>
-                {!setup && <IconButton label="Новый разговор" disabled={running || !claude.talk}
+                  options={[{ value: 'edit', label: 'Править' }, { value: 'new', label: 'С нуля' }]} />}
+                <IconButton label="Как работать с Claude" onMouseDown={e => e.preventDefault()} onClick={() => setGuide(true)}><CircleHelp size={14} /></IconButton>
+                {!setup && <IconButton tip label="Новый разговор" disabled={running || !claude.talk}
                   onMouseDown={e => e.preventDefault()} onClick={() => { claude.newConversation(); focus(); }}><SquarePen size={14} /></IconButton>}
               </div>
               {setup ? <Connect connection={c} onReady={focus} /> : <Thread editor={editor} ideas={examples} onAsk={ask} />}
@@ -166,7 +158,7 @@ export function Dock({ editor }: { editor: Editor }) {
 
         <div className="dock-bar">
           <Segmented label="Инструмент" size="lg" tone="ink" value={editor.tool} onChange={editor.setTool}
-            options={TOOLS.map(({ tool, Icon, tip, kbd }) => ({ value: tool, label: <Icon size={18} />, aria: tip, tip, kbd }))} />
+            options={TOOLS.map(({ tool, Icon, tip, kbd }) => ({ value: tool, label: <Icon size={18} />, aria: tip, ...(tool === 'block' || tool === 'plate' ? { tip, kbd } : {}) }))} />
           <span className="dock-sep" />
           <div className={`dock-input${c.ready ? '' : ' is-off'}`} onMouseDown={e => { if (e.target !== input.current) { e.preventDefault(); focus(); } }}>
             {selection.length > 0 && !fresh && <Chip mono icon={whole ? <Folder size={12} /> : <Box size={12} />}>{whole ?? (selection.length === 1 ? selection[0] : `${selection.length} ${plural(selection.length)}`)}</Chip>}
@@ -182,7 +174,6 @@ export function Dock({ editor }: { editor: Editor }) {
                 <Kbd>Tab</Kbd>
               </span>}
             </div>
-            <Kbd>⌘K</Kbd>
             {running
               ? <button className="dock-send" aria-label="Остановить" data-tip="Остановить" onClick={claude.stop}><Square size={10} fill="currentColor" /></button>
               : <button className="dock-send" aria-label="Отправить" disabled={!prompt.trim() || !c.ready}
@@ -191,7 +182,7 @@ export function Dock({ editor }: { editor: Editor }) {
         </div>
       </div>
       {menu && <Menu x={menu.x} y={menu.y} above onClose={() => setMenu(null)} items={items} />}
-      {guide && <Dialog title="Как работать с Claude и Codex" wide onClose={() => { setGuide(false); focus(); }}><div className="guide-dialog"><Guide /></div></Dialog>}
+      {guide && <Dialog title="Как работать с Claude" wide onClose={() => { setGuide(false); focus(); }}><div className="guide-dialog"><Guide /></div></Dialog>}
     </div>
   );
 }

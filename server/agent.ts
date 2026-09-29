@@ -8,7 +8,6 @@ import { dirname, relative, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { validateScene } from '../src/model';
 import { previewSvg } from '../src/preview';
-import { launchCodex } from './codex';
 import { dirs, readFile, root, validName, work } from './files';
 
 // Claude Code may be installed in several places (nvm, brew, the native
@@ -79,14 +78,11 @@ const TOOLS = ['Read', 'Write', 'Edit', 'Bash(npm run check:*)', 'Bash(npm run r
 const DENY = ['Skill', 'Task', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'NotebookEdit',
   ...['python', 'python3', 'sips', 'cat', 'ls', 'head', 'tail', 'grep', 'find', 'node', 'npx', 'tsx'].map(c => `Bash(${c}:*)`),
   ...['src', 'scripts', 'server', 'recipes', 'mcp', 'node_modules', 'test'].map(d => `Read(./${d}/**)`)];
-export type AgentId = 'claude' | 'codex';
+
 
 const GUARD = 'Ты помогаешь только с этой иллюстрацией. Если просьба не про сцену (здоровье, код, погода, что угодно ещё) — ничего не читай и не трогай файлы, а ответь одной короткой фразой с лёгкой иронией, что ты здесь по иллюстрациям, и предложи, что можно собрать.';
 const LAYOUT = 'в формате редактора: каждый блок — одна строка вида {"id":"…","x":…}, в порядке отрисовки от дальних к ближним';
-const FORMAT: Record<AgentId, string> = {
-  claude: `Сохраняй сцену инструментом Write целиком (не Edit), ${LAYOUT} — блоки появляются на холсте по мере того, как ты их пишешь.`,
-  codex: `Сохраняй сцену, перезаписывая файл целиком, ${LAYOUT} — пользователь видит каждую запись на холсте.`,
-};
+const FORMAT = `Сохраняй сцену инструментом Write целиком (не Edit), ${LAYOUT} — блоки появляются на холсте по мере того, как ты их пишешь.`;
 const FOCUS = 'Работай только с файлом сцены и превью: не читай исходники (src/, scripts/, server/, recipes/), не пиши рецепты и скрипты, не обрабатывай картинки — смотри превью как есть. Всё, что нужно знать о формате, — в AGENTS.md.';
 const FINISH = 'Последнее сообщение — для дизайнера: одна короткая фраза по-русски о том, что получилось на картинке, без имён файлов, id, чисел, кода и отчёта о проверках. Не спрашивай уточнений — реши сам.';
 const LOOK = ['storage', 'production'], SAMPLES = ['storage', 'cicd'];
@@ -107,12 +103,12 @@ function ensureTemplatePreviews() {
 const sample = (name: string) => { try { return readFileSync(resolve(dirs.templates, `${name}.json`), 'utf8').trim(); } catch { return ''; } };
 const lines = (file: string, ids: string[]) => { try { return readFile(file).objects.filter(p => ids.includes(p.id)).map(p => JSON.stringify(p)).join('\n'); } catch { return ''; } };
 
-type Ask = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean; agent: AgentId };
+type Ask = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean };
 // Three kinds of work, each with the process that gives the best result:
 // a new scene (look at the series, massing first, then detail, then an
 // honest comparison), an edit (quick, the rest untouched) and a detail
 // (only the selected blocks, judged on a preview with the rest faded).
-function promptFor({ file, prompt, selection, fresh, hasContent, followUp, agent }: Ask) {
+function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Ask) {
   const where = `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: files/${file}.json, он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`
     + (followUp ? ' Это продолжение разговора; пользователь мог поправить файл руками.' : '') + ' ' + FOCUS;
   if (fresh) return [
@@ -126,7 +122,7 @@ function promptFor({ file, prompt, selection, fresh, hasContent, followUp, agent
     `4. npm run check ${file} и npm run render ${file}, посмотри previews/${file}.png.`,
     '5. Детали — обязательный шаг: доведи до уровня серии, 12–20 блоков. Приёмы серии: цоколь или плита под предметом, корпус, крышка или верхний слой с зазором 10, повторяющиеся детали рядом (3–5 одинаковых: ящики, диски, карточки, засовы), детали на видимых гранях +X и +Y, минимум три уровня по высоте. Одно выразительное движение при наведении, у повторяющихся деталей — волна задержек. Запиши файл целиком ещё раз.',
     `6. Снова check и render; сравни с картинками серии честно: читается ли образ, богаче ли он простого ящика, баланс, аккуратность соединений, правдоподобность движения. Если не дотягивает — поправь и повтори. Смотри превью только через Read.`,
-    FORMAT[agent], FINISH,
+    FORMAT, FINISH,
     `Сцены серии:\n${SAMPLES.map(sample).join('\n\n')}`,
   ].filter(Boolean).join('\n');
   if (selection.length) return [
@@ -134,7 +130,7 @@ function promptFor({ file, prompt, selection, fresh, hasContent, followUp, agent
     `Работаем над деталью: выделены блоки ${selection.join(', ')}. Сейчас они такие:\n${lines(file, selection)}`,
     `Задача: ${prompt}`,
     'Прочитай файл. Меняй только выделенные блоки. Если детали нужны новые блоки — добавь их с id от имени детали и поставь рядом с ней в порядке отрисовки. Все остальные строки файла оставь без изменений.',
-    FORMAT[agent],
+    FORMAT,
     `Затем npm run check ${file} и npm run render ${file} --focus=<выделенные и новые id через запятую> — на превью остальная сцена приглушена, смотри на деталь в контексте; поправь, если криво.`,
     FINISH,
   ].filter(Boolean).join('\n');
@@ -142,7 +138,7 @@ function promptFor({ file, prompt, selection, fresh, hasContent, followUp, agent
     GUARD, where,
     'Прочитай файл и поправь его под задачу, всё остальное сохрани как есть. Шаблоны не нужны.',
     `Задача: ${prompt}`,
-    FORMAT[agent],
+    FORMAT,
     `Затем npm run check ${file}. Если меняешь силуэт или больше трёх блоков — ещё npm run render ${file} и посмотри превью.`,
     FINISH,
   ].filter(Boolean).join('\n');
@@ -228,18 +224,18 @@ export type RunEvent =
   | { kind: 'session'; text: string }
   | { kind: 'done'; text: string; cost?: number; turns?: number; ms?: number }
   | { kind: 'error'; text: string };
-export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; agent?: AgentId; model?: 'opus' | 'sonnet' };
+// `model` and `effort` are for experiments (npm run eval); the editor uses the defaults.
+export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high' };
 
-// An agent working on one file, headless, in the workspace: Claude Code by
-// default, or Codex. Resolves when it exits; `emit` hears everything on the way.
+// Claude Code working on one file, headless, in the workspace. Resolves when
+// it exits; `emit` hears everything on the way.
 export function launch(brief: Brief, emit: (event: RunEvent) => void) {
-  const { file, prompt, fresh = false, session = null, agent = 'claude' } = brief;
+  const { file, prompt, fresh = false, session = null } = brief;
   const selection = fresh ? [] : brief.selection ?? [];
   let hasContent = false;
   try { hasContent = readFile(file).objects.length > 0; } catch { /* a new file */ }
   if (fresh) ensureTemplatePreviews();
-  const ask = promptFor({ file, prompt, selection, fresh, hasContent, followUp: !!session, agent });
-  if (agent === 'codex') return launchCodex(ask, { fresh, session }, emit);
+  const ask = promptFor({ file, prompt, selection, fresh, hasContent, followUp: !!session });
   const cli = claudeCli();
   if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
   if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
@@ -247,7 +243,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   // detail pass and looked worse; the silent start stayed either way. So a
   // new scene gets medium effort, edits low; Sonnet is the faster choice.
   const args = ['-p', ask,
-    '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', fresh ? 'medium' : 'low',
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', brief.effort ?? (fresh ? 'medium' : 'low'),
     ...(brief.model ? ['--model', brief.model] : []),
     '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', DENY.join(','),
     ...(session ? ['--resume', session] : [])];
@@ -308,7 +304,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   return { child, exited };
 }
 
-export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown; agent?: unknown; model?: unknown }) {
+export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
   if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
   const file = body.file;
   // One run per file: a second request joins the one already going.
@@ -323,8 +319,7 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
     for (const c of run.clients) c.write(line);
   };
   const { child, exited } = launch({
-    file, prompt: body.prompt, fresh: body.fresh === true, agent: body.agent === 'codex' ? 'codex' : 'claude',
-    model: body.model === 'sonnet' || body.model === 'opus' ? body.model : undefined,
+    file, prompt: body.prompt, fresh: body.fresh === true,
     selection: Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [],
     session: typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null,
   }, emit);

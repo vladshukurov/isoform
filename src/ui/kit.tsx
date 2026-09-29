@@ -22,13 +22,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
-// An icon alone: `label` names it for screen readers and the tooltip.
-type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tip?: string | false; kbd?: string; pressed?: boolean; size?: Size; variant?: 'plain' | 'field' | 'glass' };
+// An icon alone: `label` names it for screen readers. A tooltip only where
+// the icon doesn't say it all: `tip` (true — the label) and its key.
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tip?: string | boolean; kbd?: string; pressed?: boolean; size?: Size; variant?: 'plain' | 'field' | 'glass' };
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   { label, tip, kbd, pressed, size = 'sm', variant = 'plain', className, children, type = 'button', ...rest }, ref) {
   return (
     <button ref={ref} type={type} className={['icon-btn', `is-${size}`, `icon-${variant}`, className].filter(Boolean).join(' ')}
-      aria-label={label} aria-pressed={pressed} data-tip={tip === false ? undefined : tip ?? label} data-kbd={kbd} {...rest}>
+      aria-label={label} aria-pressed={pressed} data-tip={tip === true ? label : tip || undefined} data-kbd={tip ? kbd : undefined} {...rest}>
       {children}
     </button>
   );

@@ -7,8 +7,8 @@ const noop = () => undefined;
 
 export function connection(state: Partial<Connection> = {}): Connection {
   return {
-    engine: 'local', local: { available: true, loggedIn: true, version: '2.1.197 (Claude Code)' }, agent: { available: true, loggedIn: true, version: '2.1.197 (Claude Code)' }, key: '', need: null, ready: true,
-    browserOnly: false, login: { phase: 'idle' }, signingIn: false, model: 'opus', setModel: noop,
+    engine: 'local', local: { available: true, loggedIn: true, version: '2.1.197 (Claude Code)' }, key: '', need: null, ready: true,
+    browserOnly: false, login: { phase: 'idle' }, signingIn: false,
     choose: noop, saveKey: noop, forgetKey: noop, refresh: async () => undefined, signIn: async () => undefined,
     submitCode: async () => false, cancelLogin: noop, switchAccount: noop,
     ...state,
