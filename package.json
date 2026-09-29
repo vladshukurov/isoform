@@ -10,7 +10,8 @@
     "check": "tsx scripts/check.ts",
     "preview": "vite preview --port 8791 --strictPort",
     "render": "tsx scripts/render.ts",
-    "scene": "tsx scripts/scene.ts"
+    "scene": "tsx scripts/scene.ts",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.48.0",
@@ -23,6 +24,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "playwright": "^1.63.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vite": "^7.1.0",
