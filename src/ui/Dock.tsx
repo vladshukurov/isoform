@@ -237,7 +237,7 @@ export function Dock({ editor }: { editor: Editor }) {
                         ? <div className="turn-live">
                             <i className="live-dot" />
                             <span key={job.steps.length}>{job.steps.filter(s => s.kind !== 'text').at(-1)?.text ?? 'Начинает'}</span>
-                            <em>{Math.max(0, Math.round((now - job.at) / 1000))}\u202Fс</em>
+                            <em>{Math.max(0, Math.round((now - job.at) / 1000))}{"\u202F"}с</em>
                           </div>
                         : job.error
                           ? <div className="turn-end"><p className="turn-error">{job.error}</p>
