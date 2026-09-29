@@ -15,7 +15,8 @@
     "render": "tsx scripts/render.ts",
     "scene": "tsx scripts/scene.ts",
     "smoke": "node scripts/smoke.mjs",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

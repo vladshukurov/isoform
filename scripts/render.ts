@@ -9,12 +9,12 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { previewSvg } from '../src/preview';
-import { load, root, targets } from './scenes';
+import { dirs, load, targets } from './scenes';
 
 const args = process.argv.slice(2);
 const focus = args.find(a => a.startsWith('--focus='))?.slice(8).split(',').filter(Boolean);
 for (const target of targets(args.filter(a => !a.startsWith('--')))) {
-  const out = resolve(root, 'previews', `${target.name}.png`);
+  const out = resolve(dirs.previews, `${target.name}.png`);
   try {
     const png = new Resvg(previewSvg(load(target), focus), { font: { loadSystemFonts: false } }).render().asPng();
     mkdirSync(dirname(out), { recursive: true });

@@ -8,7 +8,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { validateScene } from '../src/model';
 import { previewSvg } from '../src/preview';
-import { readFile, root, validName } from './files';
+import { dirs, readFile, root, validName, work } from './files';
 
 // Claude Code may be installed in several places (nvm, brew, the native
 // installer); prefer one that is signed in. Found through a login shell too,
@@ -83,24 +83,24 @@ const LOOK = ['storage', 'production'], SAMPLES = ['storage', 'cicd'];
 // they're drawn here when missing.
 function ensureTemplatePreviews() {
   for (const name of LOOK) {
-    const out = resolve(root, 'previews', 'templates', `${name}.png`);
+    const out = resolve(dirs.previews, 'templates', `${name}.png`);
     if (existsSync(out)) continue;
     try {
-      const scene = validateScene(JSON.parse(readFileSync(resolve(root, 'templates', `${name}.json`), 'utf8')));
+      const scene = validateScene(JSON.parse(readFileSync(resolve(dirs.templates, `${name}.json`), 'utf8')));
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(out, new Resvg(previewSvg(scene), { font: { loadSystemFonts: false } }).render().asPng());
     } catch { /* Claude can still read the JSON */ }
   }
 }
-const sample = (name: string) => { try { return readFileSync(resolve(root, 'templates', `${name}.json`), 'utf8').trim(); } catch { return ''; } };
+const sample = (name: string) => { try { return readFileSync(resolve(dirs.templates, `${name}.json`), 'utf8').trim(); } catch { return ''; } };
 const lines = (file: string, ids: string[]) => { try { return readFile(file).objects.filter(p => ids.includes(p.id)).map(p => JSON.stringify(p)).join('\n'); } catch { return ''; } };
 
-type Brief = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean };
+type Ask = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean };
 // Three kinds of work, each with the process that gives the best result:
 // a new scene (look at the series, massing first, then detail, then an
 // honest comparison), an edit (quick, the rest untouched) and a detail
 // (only the selected blocks, judged on a preview with the rest faded).
-function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Brief) {
+function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Ask) {
   const where = `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: files/${file}.json, он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`
     + (followUp ? ' Это продолжение разговора; пользователь мог поправить файл руками.' : '');
   if (fresh) return [
@@ -140,9 +140,9 @@ function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Bri
 function describe(block: { type: string; name?: string; input?: Record<string, unknown>; text?: string }) {
   if (block.type === 'text' && block.text?.trim()) return { kind: 'text', text: block.text.trim().split('\n')[0].slice(0, 160) };
   if (block.type !== 'tool_use') return null;
-  const path = typeof block.input?.file_path === 'string' ? relative(root, block.input.file_path) : '';
+  const path = typeof block.input?.file_path === 'string' ? relative(work, block.input.file_path) : '';
   const command = String(block.input?.command ?? '');
-  if (block.name === 'Write' || block.name === 'Edit') return null; // announced as it starts, see runAgent
+  if (block.name === 'Write' || block.name === 'Edit') return null; // announced as it starts, see launch
   if (block.name === 'Read') return { kind: 'tool', text: path.startsWith('templates/') || path.startsWith('previews/templates/') ? 'Смотрит на серию' : path.startsWith('previews/') ? 'Смотрит на результат' : path.startsWith('files/') ? 'Изучает сцену' : 'Читает правила' };
   if (/npm run check/.test(command)) return { kind: 'tool', text: 'Проверяет, что блоки не пересекаются' };
   if (/npm run render/.test(command)) return { kind: 'tool', text: 'Рендерит превью' };
@@ -208,31 +208,32 @@ export function stopAgent(file: string) {
   return { ok: true };
 }
 
-export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
+// What a run reports, one event per line to the editor: steps, the scene as
+// far as Claude has written it, its session and how it ended.
+export type RunEvent =
+  | { kind: 'think' | 'tool' | 'text'; text: string }
+  | { kind: 'scene'; objects: unknown[]; title?: string; motion?: string }
+  | { kind: 'session'; text: string }
+  | { kind: 'done'; text: string; cost?: number; turns?: number; ms?: number }
+  | { kind: 'error'; text: string };
+export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null };
+
+// Claude Code working on one file, headless, in the workspace. Resolves when
+// it exits; `emit` hears everything on the way.
+export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   const cli = claudeCli();
   if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
   if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
-  if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
-  const file = body.file;
-  // One run per file: a second request joins the one already going.
-  const going = runs.get(file);
-  if (going && !going.done) return attach(going, res);
-  const selection = Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [];
-  const session = typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null;
-  const fresh = body.fresh === true;
+  const { file, prompt, fresh = false, session = null } = brief;
+  const selection = fresh ? [] : brief.selection ?? [];
   let hasContent = false;
   try { hasContent = readFile(file).objects.length > 0; } catch { /* a new file */ }
   if (fresh) ensureTemplatePreviews();
-  const args = ['-p', promptFor({ file, prompt: body.prompt, selection: fresh ? [] : selection, fresh, hasContent, followUp: !!session }),
+  const args = ['-p', promptFor({ file, prompt, selection, fresh, hasContent, followUp: !!session }),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', fresh ? 'medium' : 'low',
     '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', 'Skill,Task,Bash(python:*),Bash(python3:*),Bash(sips:*)',
     ...(session ? ['--resume', session] : [])];
-  const child = spawn(cli.path, args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  const run: Run = { file, prompt: body.prompt, child, lines: [], clients: new Set(), done: false };
-  runs.set(file, run);
-  const emit = (event: object) => { const line = JSON.stringify(event) + '\n'; run.lines.push(line); for (const c of run.clients) c.write(line); };
-  const send = (step: { kind: string; text: string }) => emit(step);
-  attach(run, res);
+  const child = spawn(cli.path, args, { cwd: work, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
 
   let buffer = '', errors = '', sessionId = session, ended = false, writes = 0;
   // Tool input streaming in, per content block, and how many blocks were last shown.
@@ -250,41 +251,64 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
           const e = event.event;
           if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
             inputs.set(e.index, { name: e.content_block.name, json: '', shown: -1 });
-            if (e.content_block.name === 'Write') { writes++; send({ kind: 'tool', text: writes === 1 ? (fresh ? 'Ставит каркас' : selection.length ? 'Правит деталь' : 'Расставляет блоки') : 'Дорабатывает детали' }); }
+            if (e.content_block.name === 'Write') { writes++; emit({ kind: 'tool', text: writes === 1 ? (fresh ? 'Ставит каркас' : selection.length ? 'Правит деталь' : 'Расставляет блоки') : 'Дорабатывает детали' }); }
           }
-          if (e?.type === 'content_block_start' && e.content_block?.type === 'thinking') send({ kind: 'think', text: 'Думает' });
+          if (e?.type === 'content_block_start' && e.content_block?.type === 'thinking') emit({ kind: 'think', text: 'Думает' });
           if (e?.type === 'content_block_delta' && e.delta?.type === 'input_json_delta') {
             const block = inputs.get(e.index);
             if (block?.name === 'Write') {
               block.json += e.delta.partial_json;
               const scene = partialScene(block.json, `files/${file}.json`);
-              // Only the latest draft matters to a late joiner; keep the replay short.
-              if (scene && scene.objects.length !== block.shown) {
-                block.shown = scene.objects.length;
-                const at = run.lines.findIndex(l => l.startsWith('{"kind":"scene"'));
-                if (at >= 0) run.lines.splice(at, 1);
-                emit({ kind: 'scene', ...scene });
-              }
+              if (scene && scene.objects.length !== block.shown) { block.shown = scene.objects.length; emit({ kind: 'scene', ...scene }); }
             }
           }
           continue;
         }
-        if (event.type === 'assistant') for (const block of event.message?.content ?? []) { const step = describe(block); if (step) send(step); }
+        if (event.type === 'assistant') for (const block of event.message?.content ?? []) { const step = describe(block); if (step) emit(step as RunEvent); }
         if (event.type === 'result') {
           ended = true;
           if (sessionId) emit({ kind: 'session', text: sessionId });
-          send(event.is_error ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') } : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' ') });
+          emit(event.is_error
+            ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') }
+            : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' '), cost: event.total_cost_usd, turns: event.num_turns, ms: event.duration_ms });
         }
       } catch { /* a partial or non-JSON line */ }
     }
   });
   child.stderr!.setEncoding('utf8').on('data', (chunk: string) => { errors += chunk; });
-  child.on('close', code => {
-    if (!ended) send(code === null || code === 143 ? { kind: 'done', text: 'Остановлено' } : { kind: 'error', text: errors.trim().split('\n').at(-1) || `Claude Code завершился с кодом ${code}` });
-    run.done = true;
-    for (const c of run.clients) c.end();
-    run.clients.clear();
-    // A finished run is kept a little for an editor reopening just now.
-    setTimeout(() => { if (runs.get(file) === run) runs.delete(file); }, 30000);
-  });
+  const exited = new Promise<void>(done => child.on('close', code => {
+    if (!ended) emit(code === null || code === 143 ? { kind: 'done', text: 'Остановлено' } : { kind: 'error', text: errors.trim().split('\n').at(-1) || `Claude Code завершился с кодом ${code}` });
+    done();
+  }));
+  return { child, exited };
+}
+
+export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
+  if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
+  const file = body.file;
+  // One run per file: a second request joins the one already going.
+  const going = runs.get(file);
+  if (going && !going.done) return attach(going, res);
+  const run: Run = { file, prompt: body.prompt, child: null!, lines: [], clients: new Set(), done: false };
+  const emit = (event: RunEvent) => {
+    // Only the latest draft matters to a late joiner; keep the replay short.
+    if (event.kind === 'scene') { const at = run.lines.findIndex(l => l.startsWith('{"kind":"scene"')); if (at >= 0) run.lines.splice(at, 1); }
+    const line = JSON.stringify(event) + '\n';
+    run.lines.push(line);
+    for (const c of run.clients) c.write(line);
+  };
+  const { child, exited } = launch({
+    file, prompt: body.prompt, fresh: body.fresh === true,
+    selection: Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [],
+    session: typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null,
+  }, emit);
+  run.child = child;
+  runs.set(file, run);
+  attach(run, res);
+  await exited;
+  run.done = true;
+  for (const c of run.clients) c.end();
+  run.clients.clear();
+  // A finished run is kept a little for an editor reopening just now.
+  setTimeout(() => { if (runs.get(file) === run) runs.delete(file); }, 30000);
 }

@@ -6,7 +6,10 @@ import { formatScene } from '../src/format';
 import { validateScene, type Scene } from '../src/model';
 
 export const root = resolve(import.meta.dirname, '..');
-export const dirs = { files: resolve(root, 'files'), templates: resolve(root, 'templates') };
+// Where files/ and previews/ are: the project, or a sandbox of its own for a
+// run that shouldn't touch your files (npm run eval).
+export const work = process.env.ISOFORM_WORKSPACE ? resolve(process.env.ISOFORM_WORKSPACE) : root;
+export const dirs = { files: resolve(work, 'files'), templates: resolve(root, 'templates'), previews: resolve(work, 'previews') };
 
 export const validName = (name: unknown): name is string => typeof name === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(name);
 const pathOf = (name: string) => {
@@ -15,7 +18,7 @@ const pathOf = (name: string) => {
 };
 
 // A file that doesn't parse (an agent mid-write) is reported, not fatal.
-export function list(kind: keyof typeof dirs) {
+export function list(kind: 'files' | 'templates') {
   const scenes: { name: string; scene: Scene }[] = [], broken: { name: string; error: string }[] = [];
   for (const f of readdirSync(dirs[kind]).filter(f => f.endsWith('.json')).sort()) {
     const name = f.slice(0, -5);

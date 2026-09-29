@@ -6,3 +6,5 @@ files/*
 !files/.gitkeep
 recipes/*
 !recipes/example-*.ts
+# Eval runs: sandboxes with their own files, previews and report
+eval/runs/

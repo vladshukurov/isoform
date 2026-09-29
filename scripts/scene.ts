@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { formatScene } from '../src/format';
 import { validateScene, type Scene } from '../src/model';
 import { review } from '../src/review';
-import { root } from './scenes';
+import { dirs, root } from './scenes';
 
 const name = process.argv[2]?.replace(/^recipes\//, '').replace(/\.ts$/, '');
 if (!name) { console.error('Укажите рецепт: npm run scene <имя>'); process.exit(1); }
@@ -16,7 +16,7 @@ if (!existsSync(source)) { console.error(`Нет рецепта recipes/${name}.
 
 const made = (await import(pathToFileURL(source).href)).default as Scene | (() => Scene);
 const scene = validateScene(typeof made === 'function' ? made() : made);
-const out = resolve(root, 'files', `${name}.json`);
+const out = resolve(dirs.files, `${name}.json`);
 writeFileSync(out, formatScene(scene));
 const problems = review(scene);
 console.log(`${problems.length ? '✗' : '✓'} files/${name}.json: блоков ${scene.objects.length}`);
