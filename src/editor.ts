@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
-import { runWithApi } from './ai/api';
-import type { Step } from './ai/job';
-import { agentRuns, runWithClaudeCode, stopClaudeCode, watchClaudeCode } from './ai/local';
+import { useClaude, type Run, type Workspace } from './ai/claude';
 import * as clipboard from './clipboard';
 import * as ops from './ops';
 import { bounds } from './snap';
@@ -13,10 +11,6 @@ import {
 } from './model';
 
 export type Mode = 'rest' | 'hover';
-export type Turn = { prompt: string; result?: string; error?: string };
-export type Talk = { id: string; title: string; session?: string; turns: Turn[]; at: number; named?: boolean };
-type Talks = { current: string | null; list: Talk[] };
-const TALKS = 'isoform:talks';
 export type Tool = 'move' | 'hand' | 'block' | 'plate';
 // Undo keeps the selection with each step, so ⌘Z puts you back where you were.
 type Snapshot = { scene: Scene; selection: string[] };
@@ -46,7 +40,8 @@ export function useEditor() {
   const [files, setFiles] = useState<Record<string, Scene>>({});
   const [templates, setTemplates] = useState<Record<string, Scene>>({});
   const [loaded, setLoaded] = useState(false);
-  const [local, setLocal] = useState(false);
+  // The static build: no server, files live in this browser.
+  const [browserOnly, setBrowserOnly] = useState(false);
   const [root, setRoot] = useState('');
   const [nodePath, setNodePath] = useState('');
   // The last thing an agent did through MCP.
@@ -62,27 +57,8 @@ export function useEditor() {
   // The last change that came from disk (an agent), to flash and offer undo.
   const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean; quiet?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
-  // In-editor generation: its steps, and the file it writes to while running.
-  const [job, setJob] = useState<{ file: string; prompt: string; steps: Step[]; running: boolean; at: number; result?: string; error?: string; changed?: boolean } | null>(null);
-  // Conversations with Claude, per file: each keeps its exchanges and the
-  // Claude Code session its follow-ups continue; you can go back to any.
-  // Kept in this browser across reloads.
-  const [talks, setTalksState] = useState<Record<string, Talks>>(() => { try { return JSON.parse(localStorage.getItem(TALKS) ?? '{}'); } catch { return {}; } });
-  const talksRef = useRef(talks);
-  const setTalks = (update: (all: Record<string, Talks>) => Record<string, Talks>) => {
-    talksRef.current = update(talksRef.current);
-    setTalksState(talksRef.current);
-    try { localStorage.setItem(TALKS, JSON.stringify(talksRef.current)); } catch { /* private mode */ }
-  };
-  const editTalk = (file: string, id: string, change: (t: Talk) => Talk) => setTalks(all => {
-    const f = all[file];
-    return f ? { ...all, [file]: { ...f, list: f.list.map(t => t.id === id ? change(t) : t) } } : all;
-  });
-  // The block Claude is writing right now, outlined on the canvas.
-  const [live, setLive] = useState<string | null>(null);
-  const [rebuilding, setRebuilding] = useState(false);
-  const running = useRef<{ file: string; abort: AbortController; engine: 'local' | 'api' } | null>(null);
+  // Claude's run in progress (see ai/claude.ts).
+  const running = useRef<Run | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const lastDuplicate = useRef<{ file: string | null; from: string[]; to: string[] } | null>(null);
   const dirty = useRef(new Set<string>());
@@ -117,7 +93,7 @@ export function useEditor() {
       setRoot(library.root);
       setNodePath(library.node ?? '');
       setAgent(library.mcp ?? null);
-      setLocal(library.local);
+      setBrowserOnly(library.local);
       broken.current = new Set(library.broken?.map(b => b.name));
       if (library.broken?.length) setMessage(`Не читается: ${library.broken.map(b => `${b.name}.json — ${b.error}`).join('; ')}`);
       const fromUrl = new URLSearchParams(location.search).get('file');
@@ -498,112 +474,32 @@ export function useEditor() {
     openFile(Object.keys(rest)[0] ?? null);
   };
 
-  // Generation: one undo step for the whole run; drafts land on the canvas as they come.
-  const generate = async (prompt: string, engine: 'local' | 'api', key = '', watch = false, fresh = false) => {
-    if (running.current) return;
-    let file = cur.current;
-    if (!file) file = addFile('scene', blank());
-    const scene = latest.current[file] ?? blank(), selection = fresh ? [] : sel.current;
-    // From scratch: Claude starts from nothing; the old scene fades until the new one arrives.
-    const base = fresh ? { ...scene, objects: [] } : scene;
-    const abort = new AbortController();
-    // Local runs write through disk: save first so Claude reads what you see;
-    // from then on the file is Claude's until the run ends.
-    if (engine === 'local') await flush();
-    if (running.current) return;
-    running.current = { file, abort, engine };
-    change(s => ({ ...s }), true);
-    setJob({ file, prompt, steps: [], running: true, at: Date.now() });
-    setRebuilding(fresh && scene.objects.length > 0);
-    const progress = (step: Step) => setJob(j => j && (j.steps.at(-1)?.text === step.text ? j : { ...j, steps: [...j.steps.slice(-5), step] }));
-    const draft = (next: Scene, final: boolean) => {
-      if (cur.current !== file) return;
-      // Claude Code writes the file itself: its drafts are only shown, never saved over it.
-      if (engine === 'api' || final) dirty.current.add(file!);
-      const before = latest.current[file!];
-      const touched = next.objects.filter(p => !before?.objects.some(o => o.id === p.id && JSON.stringify(o) === JSON.stringify(p)));
-      if (touched.length) setLive(touched.at(-1)!.id);
-      setRebuilding(false);
-      latest.current = { ...latest.current, [file!]: next };
+  // What a Claude run may touch.
+  const workspace: Workspace = {
+    loaded, browserOnly, file: current,
+    current: () => cur.current,
+    selection: () => sel.current,
+    select: setSelection,
+    scene: file => latest.current[file],
+    create: () => addFile('scene', blank()),
+    save: () => flush(),
+    checkpoint,
+    show: (file, next, keep) => {
+      if (keep) dirty.current.add(file);
+      latest.current = { ...latest.current, [file]: next };
       setFiles(latest.current);
-    };
-    // The open conversation, or a new one named after its first message.
-    let talk = talksRef.current[file]?.list.find(t => t.id === talksRef.current[file]?.current);
-    if (!talk) {
-      talk = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: prompt.trim().slice(0, 80), turns: [], at: Date.now() };
-      const made = talk;
-      setTalks(all => ({ ...all, [file!]: { current: made.id, list: [made, ...all[file!]?.list ?? []].slice(0, 30) } }));
-    }
-    const talkId = talk.id;
-    // A conversation is named after its first message that changed the scene.
-    const finish = (turn: Turn) => {
-      const changed = formatScene(scene) !== formatScene(latest.current[file!] ?? blank());
-      editTalk(file!, talkId, t => ({ ...t, turns: [...t.turns, turn], at: Date.now(),
-        ...(changed && !t.named ? { title: prompt.trim().slice(0, 80), named: true } : {}) }));
-    };
-    try {
-      const job = { prompt, file, scene: base, selection, signal: abort.signal, progress, draft,
-        session: talk.session, onSession: (id: string) => editTalk(file!, talkId, t => ({ ...t, session: id })) };
-      const result = watch ? await watchClaudeCode(job) : engine === 'local' ? await runWithClaudeCode(job) : await runWithApi(job, key);
-      setJob(j => j && { ...j, running: false, result });
-      finish({ prompt, result });
-    } catch (error) {
-      const aborted = abort.signal.aborted;
-      const outcome = { error: aborted ? undefined : (error as Error).message, result: aborted ? 'Остановлено' : undefined };
-      setJob(j => j && { ...j, running: false, ...outcome });
-      finish({ prompt, ...outcome });
-      // A session Claude Code no longer knows starts over next time.
-      if (/session|сесси/i.test(outcome.error ?? '')) editTalk(file!, talkId, t => ({ ...t, session: undefined }));
-    } finally {
-      running.current = null;
-      setLive(null);
-      setRebuilding(false);
-      // After work on a detail the selection stays on it, new parts included.
-      if (selection.length && cur.current === file) {
-        const after = latest.current[file]?.objects ?? [];
-        const added = after.filter(p => !scene.objects.some(o => o.id === p.id)).map(p => p.id);
-        setSelection([...selection.filter(id => after.some(p => p.id === id)), ...added]);
-      }
-      // A run that changed nothing leaves no empty undo step behind.
-      const h = track(file), same = formatScene(scene) === formatScene(latest.current[file] ?? blank());
-      if (h.past.length && formatScene(h.past.at(-1)!.scene) === formatScene(latest.current[file] ?? blank())) h.past.pop();
-      setJob(j => j && { ...j, changed: !same });
-    }
+    },
+    settle: (file, before) => {
+      const now = formatScene(latest.current[file] ?? blank()), h = track(file);
+      if (h.past.length && formatScene(h.past.at(-1)!.scene) === now) h.past.pop();
+      return formatScene(before) !== now;
+    },
   };
-  const stopGenerating = () => {
-    const run = running.current;
-    if (!run) return;
-    if (run.engine === 'local') stopClaudeCode(run.file);
-    run.abort.abort();
-  };
-  // Opening a file Claude is still working on shows that run as it goes.
-  useEffect(() => {
-    if (!loaded || !current || local || running.current) return;
-    agentRuns().then(list => {
-      const run = list.find(r => r.file === current);
-      if (run && !running.current && cur.current === run.file) generate(run.prompt, 'local', '', true);
-    });
-  }, [loaded, current]);
-  // A fresh conversation: the next message starts one; the old ones stay.
-  const newConversation = () => {
-    const file = cur.current;
-    if (!file || running.current) return;
-    setTalks(all => all[file] ? { ...all, [file]: { ...all[file], current: null } } : all);
-    setJob(null);
-  };
-  const openConversation = (id: string) => {
-    const file = cur.current;
-    if (!file || running.current) return;
-    setTalks(all => all[file] ? { ...all, [file]: { ...all[file], current: id } } : all);
-    setJob(null);
-  };
-  const fileTalks = current ? talks[current] : undefined;
-  const talk = fileTalks?.list.find(t => t.id === fileTalks.current) ?? null;
+  const claude = useClaude(workspace, running);
 
   return {
-    job, generate, stopGenerating, rebuilding, dismissJob: () => setJob(null), aiOpen, setAiOpen, live, newConversation, openConversation,
-    talk, talks: fileTalks?.list ?? [], thread: talk?.turns ?? [], hasSession: !!talk?.session,
-    files, templates, loaded, local, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
+    claude,
+    files, templates, loaded, browserOnly, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,

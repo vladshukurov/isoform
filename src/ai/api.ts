@@ -107,9 +107,8 @@ export async function runWithApi(job: Job, key: string) {
       message = await stream.finalMessage();
     } catch (error) {
       if (error instanceof Anthropic.APIUserAbortError) throw error;
-      if (error instanceof Anthropic.AuthenticationError) throw new Error('Ключ API не подходит');
-      if (error instanceof Anthropic.RateLimitError) throw new Error('Слишком много запросов — попробуйте через минуту');
-      if (error instanceof Anthropic.APIError) throw new Error(`API: ${error.message}`);
+      // The status goes along so the dock can say what happened (see errors.ts).
+      if (error instanceof Anthropic.APIError) throw new Error(`API ${error.status ?? ''}: ${error.message}`);
       // An unparseable tool input: ask again.
       continue;
     }

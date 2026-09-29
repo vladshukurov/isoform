@@ -43,7 +43,7 @@ export function App() {
       if (cmd && e.shiftKey && key === 'l') { e.preventDefault(); editor.toggle(selection, 'locked'); return; }
       if (cmd && e.key === '\\') { e.preventDefault(); setChrome(c => !c); return; }
       if (cmd && key === 'o') { e.preventDefault(); picker.current?.click(); return; }
-      if (cmd && key === 'k') { e.preventDefault(); editor.setAiOpen(!editor.aiOpen); return; }
+      if (cmd && key === 'k') { e.preventDefault(); editor.claude.setOpen(!editor.claude.open); return; }
       if (cmd && key === 'c' && selection.length) { editor.copy(); return; }
       if (cmd && key === 'x' && selection.length) { e.preventDefault(); editor.cut(); return; }
       // The paste event below brings the system clipboard; if the browser
@@ -177,7 +177,7 @@ export function App() {
         onChange={e => { open(e.target.files); e.target.value = ''; }} />
       {(dialog === 'new' || (empty && !dialog)) &&
         <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)}
-          onAgent={() => { editor.createFile(); setDialog(null); editor.setAiOpen(true); }} />}
+          onAgent={() => { editor.createFile(); setDialog(null); editor.claude.setOpen(true); }} />}
       {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"

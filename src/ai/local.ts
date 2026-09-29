@@ -1,11 +1,11 @@
 // Generation through Claude Code on this computer: the dev server runs
 // `claude -p` in the project, the agent edits files/<name>.json by AGENTS.md,
 // and the editor picks each write up live from disk.
+import type { Piece } from '../model';
 import type { Job, Step } from './job';
 
-import type { Piece } from '../model';
-
-export const localAgent = () => fetch('/api/agent').then(r => r.ok ? r.json() as Promise<{ available: boolean; loggedIn?: boolean; version?: string }> : { available: false }).catch(() => ({ available: false }));
+export type LocalAgent = { available: boolean; loggedIn?: boolean; version?: string };
+export const localAgent = (): Promise<LocalAgent> => fetch('/api/agent').then(r => r.ok ? r.json() : { available: false }).catch(() => ({ available: false }));
 
 export async function runWithClaudeCode(job: Job) {
   const response = await fetch('/api/agent', {

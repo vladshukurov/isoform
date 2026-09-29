@@ -53,7 +53,7 @@ export function FileHeader({ editor, dark, onDark, onNew, onSeries, onShortcuts,
         : <span className="file-name" onDoubleClick={e => { e.stopPropagation(); if (current) setRenaming(true); }}>{current ?? 'Isoform'}</span>}
       {editor.save === 'error' && <span className="save-error" data-tip={editor.saveError ?? ''}>Не сохранено</span>}
       {editor.save === 'saving' && <i className="save-dot" aria-label="Сохраняется" />}
-      {editor.local && <span className="local-badge">Браузер</span>}
+      {editor.browserOnly && <span className="local-badge">Браузер</span>}
       <ChevronDown size={14} className="file-chevron" />
     </div>
     {menu && <Menu {...menu} items={items} onClose={() => setMenu(null)} />}

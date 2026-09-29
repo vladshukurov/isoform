@@ -318,7 +318,7 @@ export function Canvas({ editor }: { editor: Editor }) {
     <div className={`canvas${moving ? ' is-moving' : ''}`} ref={host} style={{ cursor }}
       onPointerDown={backgroundDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
       onContextMenu={contextMenu}>
-      <svg width={size.w} height={size.h} className={`iso-art workspace${editor.rebuilding ? ' is-rebuilding' : ''}${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
+      <svg width={size.w} height={size.h} className={`iso-art workspace${editor.claude.rebuilding ? ' is-rebuilding' : ''}${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
         <g transform={`translate(${view.ox} ${view.oy}) scale(${view.s})`}>
           <path className="grid" d={grid.join(' ')} />
           {[...selected.map(boxOf), ...(draft ? [draft] : [])].map((b, i) => {
@@ -339,8 +339,8 @@ export function Canvas({ editor }: { editor: Editor }) {
             <path className="hover-outline" d={outline(boxOf(objects.find(p => p.id === hovered)!))} />}
           {selected.map(p => <path key={p.id} className="select-outline" d={outline(boxOf(p))} />)}
           {/* The block Claude is writing right now. */}
-          {editor.live && objects.find(p => p.id === editor.live) &&
-            <path key={editor.live} className="live-outline" d={outline(boxOf(objects.find(p => p.id === editor.live)!))} />}
+          {editor.claude.live && objects.find(p => p.id === editor.claude.live) &&
+            <path key={editor.claude.live} className="live-outline" d={outline(boxOf(objects.find(p => p.id === editor.claude.live)!))} />}
           {/* Blocks an agent just changed flash once. */}
           {editor.external?.name === editor.current && objects.filter(p => editor.external!.ids.includes(p.id)).map(p =>
             <path key={`${p.id}-${editor.external!.at}`} className="flash-outline" d={outline(boxOf(p))} />)}
@@ -364,11 +364,11 @@ export function Canvas({ editor }: { editor: Editor }) {
       </svg>
       {mode === 'hover' && <div className="mode-chip"><i />Состояние при наведении</div>}
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
-      {!objects.length && tool === 'move' && !editor.job?.running && <div className="canvas-empty">
+      {!objects.length && tool === 'move' && !editor.claude.running && <div className="canvas-empty">
         <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>
           {faces({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 }).map(f => <path key={f.kind} d={path(f.points)} />)}
         </svg>
-        {!editor.aiOpen && <div className="ideas" onPointerDown={e => e.stopPropagation()}>
+        {!editor.claude.open && <div className="ideas" onPointerDown={e => e.stopPropagation()}>
           {STARTERS.map(s => <button key={s} className="idea" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</button>)}
         </div>}
       </div>}
