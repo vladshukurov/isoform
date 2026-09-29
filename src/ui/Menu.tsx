@@ -9,14 +9,16 @@ export type MenuItem =
 
 // A floating menu at a point: context menus and the file menu share it.
 // Portalled to <body>, so presses on it never reach the canvas underneath.
-export function Menu({ x, y, items, onClose, header }: { x: number; y: number; items: MenuItem[]; onClose: () => void; header?: ReactNode }) {
+export function Menu({ x, y, items, onClose, header, above }: { x: number; y: number; items: MenuItem[]; onClose: () => void; header?: ReactNode; above?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState({ x, y });
   // Keep the menu inside the window.
   useLayoutEffect(() => {
     const r = ref.current!.getBoundingClientRect();
-    setAt({ x: Math.min(x, innerWidth - r.width - 8), y: Math.min(y, innerHeight - r.height - 8) });
-  }, [x, y]);
+    // `above`: y is where the menu's bottom edge goes (a button's top).
+    const top = above ? y - r.height : y;
+    setAt({ x: Math.min(x, innerWidth - r.width - 8), y: Math.max(8, Math.min(top, innerHeight - r.height - 8)) });
+  }, [x, y, above]);
   useEffect(() => {
     const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };

@@ -202,7 +202,7 @@ input.text:focus { border-color: var(--blue); }
 .dialog header { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 1; }
 .dialog h2 { font-size: 13px; font-weight: 600; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; padding: 16px; }
-.tile { display: grid; gap: 6px; text-align: left; justify-items: stretch; padding: 0; }
+.tile { display: grid; gap: 6px; text-align: left; justify-items: stretch; align-content: start; padding: 0; }
 .tile span { color: var(--muted); padding: 0 2px; }
 .tile-art { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); aspect-ratio: 1; background: var(--page); }
 button.tile:hover .tile-art { box-shadow: 0 0 0 2px var(--blue); }
@@ -289,8 +289,7 @@ button.tile:disabled { opacity: 1; }
 .resizer:hover, .resizer:active { background: linear-gradient(90deg, transparent 2px, var(--blue) 2px, var(--blue) 4px, transparent 4px); }
 
 /* Tab dot: the scene animates on hover */
-.tabs button { position: relative; }
-.tab-dot { position: absolute; top: 5px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); }
+.tab-dot { display: inline-block; width: 5px; height: 5px; margin: 0 0 7px 3px; border-radius: 50%; background: var(--blue); vertical-align: middle; }
 
 /* Tiles */
 .tiles-heading { padding: 16px 16px 0; color: var(--muted); }
@@ -307,7 +306,8 @@ button.tile:disabled { opacity: 1; }
 
 /* Canvas in dark: a touch more ink than the site card, for editing */
 :root[data-theme="dark"] .workspace { --stroke: #4a4e56; --stroke-strong: #737983; }
-.repeat { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.repeat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 4px; }
+.repeat .button { justify-content: center; }
 .repeat .segmented { grid-column: 1 / -1; }
 .repeat .button { grid-column: 1 / -1; }
 .button.is-primary { background: var(--blue); color: #fff; }
@@ -345,3 +345,6 @@ button.tile:disabled { opacity: 1; }
 .generate-login { display: flex; align-items: center; gap: 8px; padding: 10px 8px 6px 14px; color: var(--muted); border-bottom: 1px solid var(--border); }
 .generate-login span { flex: 1; }
 .generate-login code { font: 11px ui-monospace, Menlo, monospace; background: var(--field); color: var(--text); padding: 1px 5px; border-radius: 4px; }
+.tools-row { margin: -2px -4px 0; }
+/* Toggles in the panels read as on: soft blue, not the tool bar's solid blue. */
+.panel button.icon[aria-pressed="true"], .panel button.icon[aria-pressed="true"]:hover { background: var(--blue-soft); color: var(--blue-text); }

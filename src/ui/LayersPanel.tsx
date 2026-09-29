@@ -40,7 +40,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
     editor.moveBefore(ids, before);
   };
 
-  if (!list.length) return <div className="layers layers-empty"><Box size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>;
+  if (!list.length) return <div className="layers" />;
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
       {list.map((p, i) => {

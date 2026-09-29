@@ -93,16 +93,14 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
 
       {!hover && selected.length > 0 && (
         <section>
-          <div className="section-head">
-            <h3>Трансформация</h3>
-            <div className="row">
+          <h3>Трансформация</h3>
+          <div className="row tools-row">
               <button className="icon" aria-label="На опору" data-tip="На опору" data-kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></button>
               <button className="icon" aria-label="Повторить" data-tip="Повторить" aria-pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></button>
               <button className="icon" aria-label="Отразить по X" data-tip="Отразить по X" data-kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></button>
               <button className="icon" aria-label="Отразить по Y" data-tip="Отразить по Y" data-kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></button>
               <button className="icon" aria-label="Повернуть на 90°" data-tip="Повернуть на 90°" data-kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></button>
             </div>
-          </div>
           {repeating && (
             <div className="repeat">
               <NumberField label={<Hash size={12} />} tip="Сколько всего" value={rep.count} step={1} min={2} onCommit={count => setRep(r => ({ ...r, count: Math.round(count) }))} />

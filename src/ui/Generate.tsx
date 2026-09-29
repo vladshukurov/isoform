@@ -93,13 +93,13 @@ export function Generate({ editor, onClose }: { editor: Editor; onClose: () => v
       )}
 
       <div className="generate-foot">
-        <button className="generate-engine" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top - 96 }); }}>
+        <button className="generate-engine" onClick={e => { const r = e.currentTarget.getBoundingClientRect(), bar = e.currentTarget.closest('.generate')!.getBoundingClientRect(); setMenu({ x: r.left, y: bar.top - 6 }); }}>
           {chosen === 'local' ? `Claude Code${local?.version ? ` · ${local.version.split(' ')[0]}` : ''}` : 'Anthropic API'}
           <ChevronDown size={12} />
         </button>
         <button className="icon" aria-label="Закрыть" data-tip="Закрыть" data-kbd="Esc" onClick={onClose} disabled={running}><X size={14} /></button>
       </div>
-      {menu && <Menu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={[
+      {menu && <Menu x={menu.x} y={menu.y} above onClose={() => setMenu(null)} items={[
         { label: local?.available && !local.loggedIn ? 'Claude Code (нужен вход)' : 'Claude Code на этом компьютере', checked: chosen === 'local', disabled: !local?.available, onSelect: () => { setEngine('local'); write(ENGINE, 'local'); } },
         { label: 'Ключ Anthropic API', checked: chosen === 'api', onSelect: () => { setEngine('api'); write(ENGINE, 'api'); } },
         ...(key ? ['separator' as const, { label: 'Забыть ключ', danger: true, onSelect: () => { write(KEY, ''); setKey(''); } }] : []),
