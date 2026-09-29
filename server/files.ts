@@ -3,20 +3,26 @@
 import { existsSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { formatScene } from '../src/format';
-import { validateScene } from '../src/model';
+import { validateScene, type Scene } from '../src/model';
 
 export const root = resolve(import.meta.dirname, '..');
 export const dirs = { files: resolve(root, 'files'), templates: resolve(root, 'templates') };
 
-export const validName = (name: string) => /^[a-z0-9][a-z0-9-]*$/.test(name);
+export const validName = (name: unknown): name is string => typeof name === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(name);
 const pathOf = (name: string) => {
   if (!validName(name)) throw new Error(`Имя «${name}»: латиница, цифры и дефис`);
   return resolve(dirs.files, `${name}.json`);
 };
 
+// A file that doesn't parse (an agent mid-write) is reported, not fatal.
 export function list(kind: keyof typeof dirs) {
-  return readdirSync(dirs[kind]).filter(f => f.endsWith('.json')).sort()
-    .map(f => ({ name: f.slice(0, -5), scene: validateScene(JSON.parse(readFileSync(resolve(dirs[kind], f), 'utf8'))) }));
+  const scenes: { name: string; scene: Scene }[] = [], broken: { name: string; error: string }[] = [];
+  for (const f of readdirSync(dirs[kind]).filter(f => f.endsWith('.json')).sort()) {
+    const name = f.slice(0, -5);
+    try { scenes.push({ name, scene: validateScene(JSON.parse(readFileSync(resolve(dirs[kind], f), 'utf8'))) }); }
+    catch (error) { broken.push({ name, error: (error as Error).message }); }
+  }
+  return { scenes, broken };
 }
 
 export const readFile = (name: string) => validateScene(JSON.parse(readFileSync(pathOf(name), 'utf8')));

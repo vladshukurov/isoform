@@ -37,7 +37,7 @@ export function NewFileDialog({ editor, onClose, onAgent }: { editor: Editor; on
           <span>С Claude или Codex</span>
         </button>
         {Object.entries(editor.templates).map(([name, scene]) => (
-          <button key={name} className="tile" onClick={() => create(name)} title={scene.title}>
+          <button key={name} className="tile" onClick={() => create(name)} data-tip={scene.title}>
             <div className="tile-art"><CardPreview scene={scene} /></div>
             <span>{name}</span>
           </button>
@@ -56,7 +56,7 @@ export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () 
       <label className="check"><input type="checkbox" checked={hold} onChange={e => setHold(e.target.checked)} /> Всё в наведении</label>
       <div className="tiles">
         {entries.map(([name, scene], i) => (
-          <div key={name} className={`tile${i === 0 && editor.scene ? ' is-current' : ''}`} title={scene.title}>
+          <div key={name} className={`tile${i === 0 && editor.scene ? ' is-current' : ''}`} data-tip={scene.title}>
             <div className="tile-art"><CardPreview scene={scene} hold={hold} /></div>
             <span>{name}</span>
           </div>
@@ -71,7 +71,7 @@ function CopyBlock({ text, mono }: { text: string; mono?: boolean }) {
   return (
     <div className={`copy${mono ? ' is-mono' : ''}`}>
       <pre>{text}</pre>
-      <button className="icon" title="Скопировать" onClick={async () => {
+      <button className="icon" aria-label="Скопировать" data-tip={copied ? 'Скопировано' : 'Скопировать'} onClick={async () => {
         await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 1200);
@@ -86,6 +86,15 @@ export function AgentDialog({ editor, onClose }: { editor: Editor; onClose: () =
   const file = editor.current ?? 'vault';
   const create = `Собери новую иллюстрацию для карточки «Хранилище паролей»: сейф с приоткрытой дверцей, при наведении дверца открывается. Сохрани в files/vault.json.`;
   const refine = `Доработай files/${file}.json: сделай конструкцию проще и добавь движение при наведении — верхний слой приподнимается.`;
+  if (editor.local) return (
+    <Dialog title="С Claude или Codex" onClose={onClose}>
+      <div className="steps-plain">
+        <p>Агент работает с файлами на компьютере, а эта копия редактора хранит сцены в браузере. Запустите локальную версию:</p>
+        <CopyBlock text={'cd isoform\nnpm install\nnpm run dev'} mono />
+        <p>Или скачайте JSON сцены, попросите агента поправить его и перетащите файл обратно в окно.</p>
+      </div>
+    </Dialog>
+  );
   return (
     <Dialog title="С Claude или Codex" onClose={onClose}>
       <ol className="steps">
@@ -109,9 +118,9 @@ export function AgentDialog({ editor, onClose }: { editor: Editor; onClose: () =
 const KEYS: [string, string][] = [
   ['V', 'Выбор'], ['H · Пробел', 'Рука'], ['B', 'Блок'], ['P', 'Плита'],
   ['Alt + тащить', 'По высоте'], ['Shift', 'Шаг 10'], ['← → ↑ ↓', 'Сдвиг по X / Y'], ['Alt ↑ ↓', 'Сдвиг по высоте'],
-  ['⌘D', 'Дублировать'], ['⌫', 'Удалить'], ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'],
+  ['⌘C · ⌘X · ⌘V', 'Копировать / вырезать / вставить'], ['⌘D', 'Дублировать'], ['⌘', 'Без привязки к соседям'], ['⌫', 'Удалить'], ['[ ]', 'Назад / вперёд'], ['⇧[ ⇧]', 'Назад / вперёд до конца'],
   ['⇧⌘H', 'Скрыть'], ['⇧⌘L', 'Заблокировать'], ['1 · 2', 'Дизайн / наведение'],
-  ['⇧1', 'Вписать'], ['⌘ + колесо', 'Масштаб'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть'],
+  ['⌘\\', 'Скрыть панели'], ['⇧1', 'Вписать'], ['⌘ + колесо', 'Масштаб'], ['⌘Z · ⇧⌘Z', 'Отменить / вернуть'],
 ];
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
@@ -120,6 +129,18 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
       <dl className="keys">
         {KEYS.map(([k, v]) => <div key={k}><dt>{v}</dt><dd><kbd>{k}</kbd></dd></div>)}
       </dl>
+    </Dialog>
+  );
+}
+
+// Our own confirm, in place of the browser's.
+export function ConfirmDialog({ title, action, onConfirm, onClose }: { title: string; action: string; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <Dialog title={title} onClose={onClose}>
+      <div className="dialog-actions">
+        <button className="button" onClick={onClose}>Отмена</button>
+        <button className="button is-danger" autoFocus onClick={() => { onClose(); onConfirm(); }}>{action}</button>
+      </div>
     </Dialog>
   );
 }

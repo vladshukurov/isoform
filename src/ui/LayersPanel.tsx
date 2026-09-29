@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
-import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, MoveUpRight, Scaling } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, MoveUpRight, Scaling, TriangleAlert } from 'lucide-react';
 import type { Editor } from '../editor';
 import { hoverKind, PLATE, type Piece } from '../model';
+import { overlaps } from '../review';
 import { pieceMenu } from './actions';
 import { Menu, type MenuItem } from './Menu';
 
@@ -15,6 +16,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const anchor = useRef<string | null>(null);
   const dragging = useRef<string[]>([]);
+  const flags = useMemo(() => scene ? overlaps(scene) : new Map<string, Set<string>>(), [scene]);
   if (!scene) return <div className="layers" />;
   const list = [...scene.objects].reverse();
 
@@ -38,6 +40,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
     editor.moveBefore(ids, before);
   };
 
+  if (!list.length) return <div className="layers layers-empty"><Box size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>;
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
       {list.map(p => {
@@ -54,7 +57,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
               e.preventDefault();
               const ids = isSelected ? selection : [p.id];
               if (!isSelected) editor.setSelection(ids);
-              setMenu({ x: e.clientX, y: e.clientY, items: pieceMenu({ ...editor, selection: ids, selected: scene.objects.filter(o => ids.includes(o.id)) }) });
+              setMenu({ x: e.clientX, y: e.clientY, items: pieceMenu(editor, ids) });
             }}
             onDragStart={e => {
               dragging.current = isSelected ? selection : [p.id];
@@ -80,14 +83,15 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                   }}
                   onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
               : <span className="layer-name">{p.id}</span>}
-            {kind !== 'rest' && <span className="layer-motion" title={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
+            {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается: ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={12} /></span>}
+            {kind !== 'rest' && <span className="layer-motion" data-tip={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
               {kind === 'move' ? <MoveUpRight size={12} /> : <Scaling size={12} />}
             </span>}
-            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} title={p.locked ? 'Разблокировать' : 'Заблокировать'}
+            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'locked'); }}>
               {p.locked ? <Lock size={12} /> : <LockOpen size={12} />}
             </button>
-            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} title={p.hidden ? 'Показать' : 'Скрыть'}
+            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'}
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'hidden'); }}>
               {p.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
             </button>

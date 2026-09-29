@@ -1,25 +1,25 @@
 import type { Editor } from '../editor';
+import { hoverKind } from '../model';
 import type { MenuItem } from './Menu';
 
-// The block actions both the canvas and the layers panel offer on right click.
-export function pieceMenu(editor: Editor): MenuItem[] {
-  const { selected, selection } = editor;
-  const hidden = selected.every(p => p.hidden), locked = selected.every(p => p.locked);
-  const animated = selected.some(p => p.hover);
+// The block actions both the canvas and the layers panel offer on right
+// click, bound to the blocks the menu was opened for.
+export function pieceMenu(editor: Editor, ids: string[]): MenuItem[] {
+  const pieces = editor.scene?.objects.filter(p => ids.includes(p.id)) ?? [];
+  const hidden = pieces.every(p => p.hidden), locked = pieces.every(p => p.locked);
   return [
-    { label: 'Дублировать', shortcut: '⌘D', onSelect: editor.duplicate },
-    { label: 'Удалить', shortcut: '⌫', onSelect: editor.remove },
+    { label: 'Копировать', shortcut: '⌘C', onSelect: () => editor.copy(ids) },
+    { label: 'Вырезать', shortcut: '⌘X', onSelect: () => editor.cut(ids) },
+    { label: 'Дублировать', shortcut: '⌘D', onSelect: () => editor.duplicate(ids) },
+    { label: 'Удалить', shortcut: '⌫', danger: true, onSelect: () => editor.remove(ids) },
     'separator',
-    { label: 'На передний план', shortcut: '⇧]', onSelect: () => editor.toEdge(true) },
-    { label: 'Вперёд', shortcut: ']', onSelect: () => editor.reorder(1) },
-    { label: 'Назад', shortcut: '[', onSelect: () => editor.reorder(-1) },
-    { label: 'На задний план', shortcut: '⇧[', onSelect: () => editor.toEdge(false) },
+    { label: 'На передний план', shortcut: '⇧]', onSelect: () => editor.toEdge(true, ids) },
+    { label: 'Вперёд', shortcut: ']', onSelect: () => editor.reorder(1, ids) },
+    { label: 'Назад', shortcut: '[', onSelect: () => editor.reorder(-1, ids) },
+    { label: 'На задний план', shortcut: '⇧[', onSelect: () => editor.toEdge(false, ids) },
     'separator',
-    { label: hidden ? 'Показать' : 'Скрыть', shortcut: '⇧⌘H', onSelect: () => editor.toggle(selection, 'hidden') },
-    { label: locked ? 'Разблокировать' : 'Заблокировать', shortcut: '⇧⌘L', onSelect: () => editor.toggle(selection, 'locked') },
-    ...(animated ? ['separator' as const, {
-      label: 'Убрать наведение',
-      onSelect: () => editor.change(s => ({ ...s, objects: s.objects.map(p => selection.includes(p.id) ? { ...p, hover: undefined, delay: undefined } : p) })),
-    }] : []),
+    { label: hidden ? 'Показать' : 'Скрыть', shortcut: '⇧⌘H', onSelect: () => editor.toggle(ids, 'hidden') },
+    { label: locked ? 'Разблокировать' : 'Заблокировать', shortcut: '⇧⌘L', onSelect: () => editor.toggle(ids, 'locked') },
+    ...(pieces.some(p => hoverKind(p) !== 'rest') ? ['separator' as const, { label: 'Убрать наведение', onSelect: () => editor.clearHover(ids) }] : []),
   ];
 }

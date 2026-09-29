@@ -58,11 +58,21 @@ export function validateScene(input: unknown): Scene {
   if (!Array.isArray(s.objects)) fail('нет objects');
   const ids = new Set<string>();
   for (const p of s.objects) {
+    if (!p || typeof p !== 'object') fail('блок должен быть объектом');
     if (typeof p.id !== 'string' || !p.id) fail('у блока нет id');
     if (ids.has(p.id)) fail(`повторяется id ${p.id}`);
     ids.add(p.id);
     for (const k of BOX_KEYS) if (!Number.isFinite(p[k])) fail(`${p.id}.${k} не число`);
+    if (p.hover !== undefined) {
+      if (!p.hover || typeof p.hover !== 'object') fail(`${p.id}.hover должен быть объектом`);
+      for (const [k, v] of Object.entries(p.hover)) {
+        if (!BOX_KEYS.includes(k as BoxKey)) fail(`${p.id}.hover.${k}: такого ключа нет`);
+        if (!Number.isFinite(v)) fail(`${p.id}.hover.${k} не число`);
+      }
+    }
     for (const k of ['w', 'd', 'h'] as const) if (p[k] <= 0 || (p.hover?.[k] ?? 1) <= 0) fail(`${p.id}.${k} ≤ 0`);
+    if (p.delay !== undefined && !(Number.isFinite(p.delay) && p.delay >= 0)) fail(`${p.id}.delay — секунды ≥ 0`);
+    for (const k of ['hidden', 'locked'] as const) if (p[k] !== undefined && typeof p[k] !== 'boolean') fail(`${p.id}.${k} — true или false`);
   }
   return s;
 }

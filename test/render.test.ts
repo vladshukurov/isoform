@@ -5,6 +5,10 @@ import { validateScene } from '../src/model';
 import { siteMotion, siteSvg } from '../src/render';
 import { review } from '../src/review';
 
+// Every attribute in every tag has a quoted value, as XML requires.
+const attributesValid = (xml: string) => [...xml.matchAll(/<[a-zA-Z][\w:-]*([^>]*?)\/?>/g)]
+  .every(([, attrs]) => [...attrs.matchAll(/\s+([^\s=]+)(="[^"]*")?/g)].every(m => m[2] !== undefined));
+
 const names = readdirSync('test/fixtures').filter(f => f.endsWith('.svg')).map(f => f.replace('.svg', ''));
 const load = (name: string) => validateScene(JSON.parse(readFileSync(`templates/${name}.json`, 'utf8')));
 
@@ -12,9 +16,14 @@ const load = (name: string) => validateScene(JSON.parse(readFileSync(`templates/
 // editor must reproduce them byte for byte, morph outlines included.
 describe('site export', () => {
   it('covers the eight site scenes', () => expect(names).toHaveLength(8));
+  it('the XML check catches a bare attribute', () => expect(attributesValid('<g data-iso stroke="1">')).toBe(false));
   for (const name of names) {
     it(`${name}.svg matches the shipped art`, () => {
-      expect(siteSvg(load(name))).toBe(readFileSync(`test/fixtures/${name}.svg`, 'utf8'));
+      // The shipped files had bare data-iso / data-hit attributes (fine inline
+      // in HTML, invalid as a standalone .svg); ours spell them data-x="".
+      const svg = siteSvg(load(name));
+      expect(svg.replace(/ data-(iso|hit)=""/g, ' data-$1')).toBe(readFileSync(`test/fixtures/${name}.svg`, 'utf8'));
+      expect(attributesValid(svg)).toBe(true);
     });
   }
 });

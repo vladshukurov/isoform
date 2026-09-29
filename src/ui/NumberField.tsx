@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { evaluate } from '../expr';
 
 type Props = {
   label: ReactNode;
-  title?: string;
+  tip?: string;
   // undefined = mixed across the selection
   value: number | undefined;
   step?: number;
@@ -16,23 +17,23 @@ type Props = {
 
 const round = (v: number) => +v.toFixed(3);
 
-// A Figma-style field: the label scrubs the value, the input commits on
-// Enter or blur, ↑↓ step it (Shift ×5).
-export function NumberField({ label, title, value, step = 2, min, accent, onCommit, onScrubStart, onScrub }: Props) {
+// A Figma-style field: the label scrubs the value, the input takes numbers
+// or arithmetic ("120/2") and commits on Enter or blur, ↑↓ step it (Shift ×5).
+export function NumberField({ label, tip, value, step = 2, min, accent, onCommit, onScrubStart, onScrub }: Props) {
   const [text, setText] = useState(value === undefined ? '' : String(round(value)));
   const scrub = useRef<{ x: number; start: number; moved: boolean } | null>(null);
   useEffect(() => setText(value === undefined ? '' : String(round(value))), [value]);
   const clamp = (v: number) => min === undefined ? v : Math.max(min, v);
 
   const commit = () => {
-    const v = Number(text.replace(',', '.'));
-    if (text.trim() !== '' && Number.isFinite(v) && clamp(v) !== value) onCommit(clamp(v));
+    const v = evaluate(text);
+    if (v !== undefined && clamp(round(v)) !== value) onCommit(clamp(round(v)));
     else setText(value === undefined ? '' : String(round(value)));
   };
 
   return (
-    <label className={`num${accent ? ' is-accent' : ''}`} title={title}>
-      <span className="num-label"
+    <label className={`num${accent ? ' is-accent' : ''}`}>
+      <span className="num-label" data-tip={tip}
         onPointerDown={e => {
           if (value === undefined || !onScrub) return;
           e.preventDefault();

@@ -206,3 +206,45 @@ button.tile:hover .tile-art { box-shadow: 0 0 0 2px var(--blue); }
 
 /* Lucide icons a touch lighter, like Figma UI3 */
 svg.lucide { stroke-width: 1.6; flex: none; }
+
+/* Tooltip */
+.tooltip {
+  position: fixed; z-index: 40; pointer-events: none; display: flex; gap: 8px; align-items: center;
+  max-width: 260px; padding: 4px 8px; border-radius: 5px; background: #1e1e1e; color: #fff; box-shadow: var(--shadow);
+}
+.tooltip kbd { color: rgba(255, 255, 255, .55); }
+
+/* Guides, warnings, empty states */
+.workspace path.guide { fill: none; stroke: #f24822; stroke-width: 1; pointer-events: none; }
+.layer-warn { display: flex; color: #e8a400; }
+.layers-empty { display: grid; justify-items: center; align-content: start; gap: 6px; padding-top: 40px; color: var(--faint); }
+.layers-empty kbd { background: var(--field); color: var(--muted); border-radius: 4px; padding: 0 6px; }
+.local-badge { color: var(--muted); background: var(--field); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+
+/* Preview and timeline */
+.preview { cursor: pointer; }
+.preview.is-pinned .card { box-shadow: 0 0 0 2px var(--blue); }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -4px -4px 0; }
+.timeline-rows { position: relative; display: grid; gap: 2px; }
+.timeline-row { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 8px; height: 22px; border-radius: 4px; }
+.timeline-row.is-selected .timeline-name { color: var(--blue-text); }
+.timeline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.timeline-track { position: relative; height: 12px; background: var(--field); border-radius: 3px; }
+.timeline-bar { position: absolute; top: 0; bottom: 0; background: var(--blue); opacity: .75; border-radius: 3px; cursor: ew-resize; }
+.timeline-row.is-selected .timeline-bar { opacity: 1; }
+.playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: #f24822; z-index: 1; pointer-events: none; }
+
+/* Buttons in dialogs */
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px; }
+.button { height: 28px; padding: 0 12px; border-radius: 5px; background: var(--field); font-weight: 500; }
+.button:hover { background: var(--field-hover); }
+.button.is-danger { background: var(--danger); color: #fff; }
+.steps-plain { display: grid; gap: 10px; padding: 16px; font-size: 12px; line-height: 18px; }
+
+/* File drop and bare mode (⌘\) */
+.drop {
+  position: absolute; inset: 12px; z-index: 5; display: grid; place-content: center; grid-auto-flow: column; gap: 8px; align-items: center;
+  border: 2px dashed var(--blue); border-radius: 12px; background: rgba(13, 153, 255, .06); color: var(--blue-text); font-weight: 600; pointer-events: none;
+}
+.app.is-bare { grid-template-columns: 0 1fr 0; }
+.app.is-bare .panel, .app.is-bare .toolbar { display: none; }

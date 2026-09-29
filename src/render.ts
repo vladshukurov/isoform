@@ -1,7 +1,7 @@
 // Site export: the exact markup the Passwork page expects. Every face carries
 // data-face so the page shades it through CSS tokens; a block whose hover
 // changes its size carries data-open (the outline GSAP morphs to); the rest
-// silhouette is the hover hit area.
+// silhouette is the hover hit area. Valid XML, so the file also opens on its own.
 import { faces, fit, hull, outline, path, project, vertices, ARTBOARD } from './geometry';
 import { hoverBox, hoverKind, type Scene } from './model';
 
@@ -23,10 +23,10 @@ export function siteSvg(source: Scene) {
   });
   const { scale, cx, cy } = fit(scene.objects);
   const hit = path(hull(scene.objects.flatMap(b => vertices(b).map(project))));
-  const body = `<path data-hit d="${hit}" fill="none" stroke="none"/>\n` + blocks.join('\n');
+  const body = `<path data-hit="" d="${hit}" fill="none" stroke="none"/>\n` + blocks.join('\n');
   const w = ARTBOARD, h = ARTBOARD;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><title>${escape(scene.title)}</title>`
-    + `<g data-iso stroke-width="0.85" stroke-linejoin="round" transform="translate(${w / 2} ${h / 2}) scale(${scale.toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})">\n${body}\n</g></svg>`;
+    + `<g data-iso="" stroke-width="0.85" stroke-linejoin="round" transform="translate(${w / 2} ${h / 2}) scale(${scale.toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})">\n${body}\n</g></svg>`;
   return svg.replace(/<path /g, '<path vector-effect="non-scaling-stroke" ');
 }
 

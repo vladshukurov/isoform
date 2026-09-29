@@ -43,5 +43,13 @@ export function useHoverBoxes(objects: Piece[], motion: Motion, active: boolean)
     return () => cancelAnimationFrame(frame);
     // Only a change of hover state restarts the tweens; edits apply live.
   }, [active]);
+  // Blocks that appear mid-hover (paste, undo, an agent) take the current
+  // pose at once; tracks of blocks that are gone are dropped.
+  const ids = new Set(objects.map(p => p.id));
+  for (const id of tracks.current.keys()) if (!ids.has(id)) tracks.current.delete(id);
+  for (const p of objects) if (!tracks.current.has(p.id)) {
+    const to = active ? 1 : 0;
+    tracks.current.set(p.id, { from: to, to, start: 0, delay: 0, duration: 1 });
+  }
   return objects.map(p => lerpBox(p, hoverBox(p), value(tracks.current.get(p.id), now, motion)));
 }
