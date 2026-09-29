@@ -2,10 +2,13 @@
 // local dev server has this; the agent may read, write and run the project's
 // check/render/scene scripts, nothing else.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { relative, resolve } from 'node:path';
-import { root, validName } from './files';
+import { dirname, relative, resolve } from 'node:path';
+import { Resvg } from '@resvg/resvg-js';
+import { validateScene } from '../src/model';
+import { previewSvg } from '../src/preview';
+import { readFile, root, validName } from './files';
 
 // Claude Code may be installed in several places (nvm, brew, the native
 // installer); prefer one that is signed in. Found through a login shell too,
@@ -73,26 +76,63 @@ const TOOLS = ['Read', 'Write', 'Edit', 'Bash(npm run check:*)', 'Bash(npm run r
 
 const GUARD = 'Ты помогаешь только с этой иллюстрацией. Если просьба не про сцену (здоровье, код, погода, что угодно ещё) — ничего не читай и не трогай файлы, а ответь одной короткой фразой с лёгкой иронией, что ты здесь по иллюстрациям, и предложи, что можно собрать.';
 const FORMAT = 'Сохраняй сцену инструментом Write целиком (не Edit), в формате редактора: каждый блок — одна строка вида {"id":"…","x":…}, в порядке отрисовки от дальних к ближним — блоки появляются на холсте по мере того, как ты их пишешь.';
-const FINISH = 'Последнее сообщение — для дизайнера: одна короткая фраза по-русски о том, что изменилось на картинке, без имён файлов, id, чисел, кода и отчёта о проверках. Не спрашивай уточнений — реши сам.';
+const FINISH = 'Последнее сообщение — для дизайнера: одна короткая фраза по-русски о том, что получилось на картинке, без имён файлов, id, чисел, кода и отчёта о проверках. Не спрашивай уточнений — реши сам.';
+const LOOK = ['storage', 'production'], SAMPLES = ['storage', 'cicd'];
 
-// One scene from the series, inlined for new scenes so Claude needn't go looking.
-const sample = () => { try { return readFileSync(resolve(root, 'templates', 'storage.json'), 'utf8').trim(); } catch { return ''; } };
+// Previews of the series for Claude to look at; previews/ isn't in git, so
+// they're drawn here when missing.
+function ensureTemplatePreviews() {
+  for (const name of LOOK) {
+    const out = resolve(root, 'previews', 'templates', `${name}.png`);
+    if (existsSync(out)) continue;
+    try {
+      const scene = validateScene(JSON.parse(readFileSync(resolve(root, 'templates', `${name}.json`), 'utf8')));
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, new Resvg(previewSvg(scene), { font: { loadSystemFonts: false } }).render().asPng());
+    } catch { /* Claude can still read the JSON */ }
+  }
+}
+const sample = (name: string) => { try { return readFileSync(resolve(root, 'templates', `${name}.json`), 'utf8').trim(); } catch { return ''; } };
+const lines = (file: string, ids: string[]) => { try { return readFile(file).objects.filter(p => ids.includes(p.id)).map(p => JSON.stringify(p)).join('\n'); } catch { return ''; } };
 
-// Speed matters: the person watches the canvas. AGENTS.md is already in
-// context (CLAUDE.md imports it); a small edit needs only the check, a new
-// scene also a look at its preview.
-function promptFor({ file, prompt, selection, fresh, followUp }: { file: string; prompt: string; selection: string[]; fresh: boolean; followUp: boolean }) {
-  const picked = selection.length ? `Выделены блоки: ${selection.join(', ')} — задача про них.` : '';
-  const verify = fresh
-    ? `Затем npm run check ${file}, npm run render ${file} и посмотри previews/${file}.png; поправь, если криво.`
-    : `Затем npm run check ${file}. Render и превью — только если меняешь больше трёх блоков или силуэт.`;
-  if (followUp) return [GUARD, `Продолжаем: files/${file}.json. Пользователь мог поправить его руками — прочитай файл перед записью.`, picked, `Задача: ${prompt}`, FORMAT, verify, FINISH].filter(Boolean).join('\n');
+type Brief = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean };
+// Three kinds of work, each with the process that gives the best result:
+// a new scene (look at the series, massing first, then detail, then an
+// honest comparison), an edit (quick, the rest untouched) and a detail
+// (only the selected blocks, judged on a preview with the rest faded).
+function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Brief) {
+  const where = `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: files/${file}.json, он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`
+    + (followUp ? ' Это продолжение разговора; пользователь мог поправить файл руками.' : '');
+  if (fresh) return [
+    GUARD, where,
+    hasContent ? 'Собери новую сцену с нуля: текущее содержимое файла замени целиком (прочитай файл — этого требует Write — но не опирайся на него).' : 'Файл пустой: собери сцену с нуля.',
+    `Задача: ${prompt}`,
+    'Как работать, по шагам:',
+    `1. Посмотри на серию глазами: ${LOOK.map(n => `previews/templates/${n}.png`).join(' и ')} (Read). Данные двух сцен серии — в конце, templates/ больше не читай.`,
+    '2. Придумай один ясный образ — предмет, который сразу объясняет задачу, — и его силуэт. Не повторяй сцены серии.',
+    '3. Каркас: не обдумывай долго — за минуту запиши файл с основными объёмами (3–6 блоков), пользователь сразу увидит форму. Детали продумаешь, глядя на каркас.',
+    `4. npm run check ${file} и npm run render ${file}, посмотри previews/${file}.png.`,
+    '5. Детали — обязательный шаг: доведи до уровня серии, 12–20 блоков. Приёмы серии: цоколь или плита под предметом, корпус, крышка или верхний слой с зазором 10, повторяющиеся детали рядом (3–5 одинаковых: ящики, диски, карточки, засовы), детали на видимых гранях +X и +Y, минимум три уровня по высоте. Одно выразительное движение при наведении, у повторяющихся деталей — волна задержек. Запиши файл целиком ещё раз.',
+    `6. Снова check и render; сравни с картинками серии честно: читается ли образ, богаче ли он простого ящика, баланс, аккуратность соединений, правдоподобность движения. Если не дотягивает — поправь и повтори. Смотри превью только через Read.`,
+    FORMAT, FINISH,
+    `Сцены серии:\n${SAMPLES.map(sample).join('\n\n')}`,
+  ].filter(Boolean).join('\n');
+  if (selection.length) return [
+    GUARD, where,
+    `Работаем над деталью: выделены блоки ${selection.join(', ')}. Сейчас они такие:\n${lines(file, selection)}`,
+    `Задача: ${prompt}`,
+    'Прочитай файл. Меняй только выделенные блоки. Если детали нужны новые блоки — добавь их с id от имени детали и поставь рядом с ней в порядке отрисовки. Все остальные строки файла оставь без изменений.',
+    FORMAT,
+    `Затем npm run check ${file} и npm run render ${file} --focus=<выделенные и новые id через запятую> — на превью остальная сцена приглушена, смотри на деталь в контексте; поправь, если криво.`,
+    FINISH,
+  ].filter(Boolean).join('\n');
   return [
-    GUARD,
-    `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: files/${file}.json, он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`,
-    fresh ? `Файл пустой: собери сцену с нуля. Образец из серии — ниже, templates/ читать не нужно:\n${sample()}` : 'Прочитай файл и поправь его, сохраняя то, что задача не затрагивает. Шаблоны не нужны.',
-    'Не читай исходники редактора (src/, scripts/, server/).',
-    picked, `Задача: ${prompt}`, FORMAT, verify, FINISH,
+    GUARD, where,
+    'Прочитай файл и поправь его под задачу, всё остальное сохрани как есть. Шаблоны не нужны.',
+    `Задача: ${prompt}`,
+    FORMAT,
+    `Затем npm run check ${file}. Если меняешь силуэт или больше трёх блоков — ещё npm run render ${file} и посмотри превью.`,
+    FINISH,
   ].filter(Boolean).join('\n');
 }
 
@@ -102,8 +142,8 @@ function describe(block: { type: string; name?: string; input?: Record<string, u
   if (block.type !== 'tool_use') return null;
   const path = typeof block.input?.file_path === 'string' ? relative(root, block.input.file_path) : '';
   const command = String(block.input?.command ?? '');
-  if (block.name === 'Write' || block.name === 'Edit') return { kind: 'tool', text: 'Расставляет блоки' };
-  if (block.name === 'Read') return { kind: 'tool', text: path.startsWith('templates/') ? 'Смотрит примеры серии' : path.startsWith('previews/') ? 'Смотрит на картинку' : path.startsWith('files/') ? 'Изучает сцену' : 'Читает правила' };
+  if (block.name === 'Write' || block.name === 'Edit') return null; // announced as it starts, see runAgent
+  if (block.name === 'Read') return { kind: 'tool', text: path.startsWith('templates/') || path.startsWith('previews/templates/') ? 'Смотрит на серию' : path.startsWith('previews/') ? 'Смотрит на результат' : path.startsWith('files/') ? 'Изучает сцену' : 'Читает правила' };
   if (/npm run check/.test(command)) return { kind: 'tool', text: 'Проверяет, что блоки не пересекаются' };
   if (/npm run render/.test(command)) return { kind: 'tool', text: 'Рендерит превью' };
   if (/npm run scene/.test(command)) return { kind: 'tool', text: 'Собирает сцену' };
@@ -179,9 +219,13 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
   if (going && !going.done) return attach(going, res);
   const selection = Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [];
   const session = typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null;
-  const args = ['-p', promptFor({ file, prompt: body.prompt, selection, fresh: body.fresh === true, followUp: !!session }),
-    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', 'Skill,Task',
+  const fresh = body.fresh === true;
+  let hasContent = false;
+  try { hasContent = readFile(file).objects.length > 0; } catch { /* a new file */ }
+  if (fresh) ensureTemplatePreviews();
+  const args = ['-p', promptFor({ file, prompt: body.prompt, selection: fresh ? [] : selection, fresh, hasContent, followUp: !!session }),
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', fresh ? 'medium' : 'low',
+    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', 'Skill,Task,Bash(python:*),Bash(python3:*),Bash(sips:*)',
     ...(session ? ['--resume', session] : [])];
   const child = spawn(cli.path, args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const run: Run = { file, prompt: body.prompt, child, lines: [], clients: new Set(), done: false };
@@ -190,7 +234,7 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
   const send = (step: { kind: string; text: string }) => emit(step);
   attach(run, res);
 
-  let buffer = '', errors = '', sessionId = session, ended = false;
+  let buffer = '', errors = '', sessionId = session, ended = false, writes = 0;
   // Tool input streaming in, per content block, and how many blocks were last shown.
   const inputs = new Map<number, { name: string; json: string; shown: number }>();
   child.stdout!.setEncoding('utf8').on('data', (chunk: string) => {
@@ -204,7 +248,10 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
         if (typeof event.session_id === 'string') sessionId = event.session_id;
         if (event.type === 'stream_event') {
           const e = event.event;
-          if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') inputs.set(e.index, { name: e.content_block.name, json: '', shown: -1 });
+          if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
+            inputs.set(e.index, { name: e.content_block.name, json: '', shown: -1 });
+            if (e.content_block.name === 'Write') { writes++; send({ kind: 'tool', text: writes === 1 ? (fresh ? 'Ставит каркас' : selection.length ? 'Правит деталь' : 'Расставляет блоки') : 'Дорабатывает детали' }); }
+          }
           if (e?.type === 'content_block_start' && e.content_block?.type === 'thinking') send({ kind: 'think', text: 'Думает' });
           if (e?.type === 'content_block_delta' && e.delta?.type === 'input_json_delta') {
             const block = inputs.get(e.index);

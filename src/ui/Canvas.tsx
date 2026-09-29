@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Minus, Plus } from 'lucide-react';
 import { Art } from '../Art';
 import type { Editor } from '../editor';
 import { AXIS, faces, outline, path, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
@@ -319,7 +318,7 @@ export function Canvas({ editor }: { editor: Editor }) {
     <div className={`canvas${moving ? ' is-moving' : ''}`} ref={host} style={{ cursor }}
       onPointerDown={backgroundDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
       onContextMenu={contextMenu}>
-      <svg width={size.w} height={size.h} className={`iso-art workspace${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
+      <svg width={size.w} height={size.h} className={`iso-art workspace${editor.rebuilding ? ' is-rebuilding' : ''}${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
         <g transform={`translate(${view.ox} ${view.oy}) scale(${view.s})`}>
           <path className="grid" d={grid.join(' ')} />
           {[...selected.map(boxOf), ...(draft ? [draft] : [])].map((b, i) => {
@@ -373,46 +372,8 @@ export function Canvas({ editor }: { editor: Editor }) {
           {STARTERS.map(s => <button key={s} className="idea" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</button>)}
         </div>}
       </div>}
-      <Navigator view={view} size={size} boxes={boxes} onView={setView} onFit={() => fitView()} onZoom={f => zoomAt(f)} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </div>
   );
 }
 
-// Bottom right: the whole scene in miniature with the visible part framed
-// (drag it to pan), and the zoom with a fit on click.
-function Navigator({ view, size, boxes, onView, onFit, onZoom }: {
-  view: View; size: { w: number; h: number }; boxes: Box[];
-  onView: (v: View) => void; onFit: () => void; onZoom: (factor: number) => void;
-}) {
-  const W = 176, H = 92, pad = 8;
-  const pts = boxes.flatMap(b => vertices(b).map(project));
-  const port = { x0: -view.ox / view.s, y0: -view.oy / view.s, x1: (size.w - view.ox) / view.s, y1: (size.h - view.oy) / view.s };
-  const xs = [...pts.map(p => p.x), port.x0, port.x1], ys = [...pts.map(p => p.y), port.y0, port.y1];
-  const b = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
-  const k = Math.min((W - pad * 2) / (b.x1 - b.x0 || 1), (H - pad * 2) / (b.y1 - b.y0 || 1));
-  const ox = W / 2 - k * (b.x0 + b.x1) / 2, oy = H / 2 - k * (b.y0 + b.y1) / 2;
-  // Centre the view on the minimap point under the pointer.
-  const pan = (e: PointerEvent<SVGSVGElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const wx = (e.clientX - r.left - ox) / k, wy = (e.clientY - r.top - oy) / k;
-    onView({ ...view, ox: size.w / 2 - wx * view.s, oy: size.h / 2 - wy * view.s });
-  };
-  return (
-    <div className="navigator surface" onPointerDown={e => e.stopPropagation()} onContextMenu={e => e.stopPropagation()}>
-      <svg className="minimap" width={W} height={H}
-        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); pan(e); }}
-        onPointerMove={e => { if (e.buttons & 1) pan(e); }}>
-        <g transform={`translate(${ox} ${oy}) scale(${k})`}>
-          {boxes.map((box, i) => <path key={i} d={outline(box)} />)}
-        </g>
-        <rect className="minimap-port" x={ox + port.x0 * k} y={oy + port.y0 * k} width={(port.x1 - port.x0) * k} height={(port.y1 - port.y0) * k} rx="4" />
-      </svg>
-      <div className="zoom-row">
-        <button className="icon" aria-label="Отдалить" onClick={() => onZoom(.8)}><Minus size={14} /></button>
-        <button className="zoom" onClick={onFit} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
-        <button className="icon" aria-label="Приблизить" onClick={() => onZoom(1.25)}><Plus size={14} /></button>
-      </div>
-    </div>
-  );
-}

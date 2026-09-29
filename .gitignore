@@ -1,3 +1,8 @@
 node_modules
 dist
 previews
+# Personal workspace: scenes and recipes stay on this machine
+files/*
+!files/.gitkeep
+recipes/*
+!recipes/example-*.ts

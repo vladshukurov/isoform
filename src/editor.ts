@@ -81,6 +81,7 @@ export function useEditor() {
   });
   // The block Claude is writing right now, outlined on the canvas.
   const [live, setLive] = useState<string | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
   const running = useRef<{ file: string; abort: AbortController; engine: 'local' | 'api' } | null>(null);
   const stacks = useRef<Record<string, History>>({});
   const lastDuplicate = useRef<{ file: string | null; from: string[]; to: string[] } | null>(null);
@@ -498,11 +499,13 @@ export function useEditor() {
   };
 
   // Generation: one undo step for the whole run; drafts land on the canvas as they come.
-  const generate = async (prompt: string, engine: 'local' | 'api', key = '', watch = false) => {
+  const generate = async (prompt: string, engine: 'local' | 'api', key = '', watch = false, fresh = false) => {
     if (running.current) return;
     let file = cur.current;
     if (!file) file = addFile('scene', blank());
-    const scene = latest.current[file] ?? blank(), selection = sel.current;
+    const scene = latest.current[file] ?? blank(), selection = fresh ? [] : sel.current;
+    // From scratch: Claude starts from nothing; the old scene fades until the new one arrives.
+    const base = fresh ? { ...scene, objects: [] } : scene;
     const abort = new AbortController();
     // Local runs write through disk: save first so Claude reads what you see;
     // from then on the file is Claude's until the run ends.
@@ -511,14 +514,16 @@ export function useEditor() {
     running.current = { file, abort, engine };
     change(s => ({ ...s }), true);
     setJob({ file, prompt, steps: [], running: true, at: Date.now() });
+    setRebuilding(fresh && scene.objects.length > 0);
     const progress = (step: Step) => setJob(j => j && (j.steps.at(-1)?.text === step.text ? j : { ...j, steps: [...j.steps.slice(-5), step] }));
     const draft = (next: Scene, final: boolean) => {
       if (cur.current !== file) return;
       // Claude Code writes the file itself: its drafts are only shown, never saved over it.
       if (engine === 'api' || final) dirty.current.add(file!);
       const before = latest.current[file!];
-      const fresh = next.objects.filter(p => !before?.objects.some(o => o.id === p.id && JSON.stringify(o) === JSON.stringify(p)));
-      if (fresh.length) setLive(fresh.at(-1)!.id);
+      const touched = next.objects.filter(p => !before?.objects.some(o => o.id === p.id && JSON.stringify(o) === JSON.stringify(p)));
+      if (touched.length) setLive(touched.at(-1)!.id);
+      setRebuilding(false);
       latest.current = { ...latest.current, [file!]: next };
       setFiles(latest.current);
     };
@@ -537,7 +542,7 @@ export function useEditor() {
         ...(changed && !t.named ? { title: prompt.trim().slice(0, 80), named: true } : {}) }));
     };
     try {
-      const job = { prompt, file, scene, selection, signal: abort.signal, progress, draft,
+      const job = { prompt, file, scene: base, selection, signal: abort.signal, progress, draft,
         session: talk.session, onSession: (id: string) => editTalk(file!, talkId, t => ({ ...t, session: id })) };
       const result = watch ? await watchClaudeCode(job) : engine === 'local' ? await runWithClaudeCode(job) : await runWithApi(job, key);
       setJob(j => j && { ...j, running: false, result });
@@ -552,6 +557,13 @@ export function useEditor() {
     } finally {
       running.current = null;
       setLive(null);
+      setRebuilding(false);
+      // After work on a detail the selection stays on it, new parts included.
+      if (selection.length && cur.current === file) {
+        const after = latest.current[file]?.objects ?? [];
+        const added = after.filter(p => !scene.objects.some(o => o.id === p.id)).map(p => p.id);
+        setSelection([...selection.filter(id => after.some(p => p.id === id)), ...added]);
+      }
       // A run that changed nothing leaves no empty undo step behind.
       const h = track(file), same = formatScene(scene) === formatScene(latest.current[file] ?? blank());
       if (h.past.length && formatScene(h.past.at(-1)!.scene) === formatScene(latest.current[file] ?? blank())) h.past.pop();
@@ -589,7 +601,7 @@ export function useEditor() {
   const talk = fileTalks?.list.find(t => t.id === fileTalks.current) ?? null;
 
   return {
-    job, generate, stopGenerating, dismissJob: () => setJob(null), aiOpen, setAiOpen, live, newConversation, openConversation,
+    job, generate, stopGenerating, rebuilding, dismissJob: () => setJob(null), aiOpen, setAiOpen, live, newConversation, openConversation,
     talk, talks: fileTalks?.list ?? [], thread: talk?.turns ?? [], hasSession: !!talk?.session,
     files, templates, loaded, local, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,

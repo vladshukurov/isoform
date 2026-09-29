@@ -5,7 +5,7 @@ import {
 import { localAgent, sendLoginCode, startLogin } from '../ai/local';
 import type { Editor, Tool } from '../editor';
 import { ClaudeMark } from './ClaudeMark';
-import { Menu } from './Menu';
+import { Menu, type MenuItem } from './Menu';
 
 type Engine = 'local' | 'api';
 type Local = { available: boolean; loggedIn?: boolean; version?: string };
@@ -63,6 +63,8 @@ export function Dock({ editor }: { editor: Editor }) {
   const toolsRef = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ x: number; w: number } | null>(null);
   const [tick, setTick] = useState(0);
+  // Edit what's there, or build a new scene from scratch in its place.
+  const [mode, setMode] = useState<'edit' | 'new'>('edit');
   const { job, selection, scene, thread, aiOpen: focused, setAiOpen: setFocused } = editor;
 
   const check = () => editor.local ? Promise.resolve(setLocal({ available: false })) : localAgent().then(setLocal);
@@ -86,10 +88,13 @@ export function Dock({ editor }: { editor: Editor }) {
   const ready = chosen === 'api' ? !!key : !!local?.loggedIn;
   const running = !!job?.running;
   const signingIn = login.phase !== 'idle';
+  const hasScene = !!scene?.objects.length;
+  const fresh = mode === 'new' && hasScene;
   const ask = (text: string) => {
     if (!text.trim() || running || !ready) return;
-    editor.generate(text.trim(), chosen, key);
+    editor.generate(text.trim(), chosen, key, false, fresh);
     setPrompt('');
+    setMode('edit');
   };
   const send = () => ask(prompt);
   // Ideas elsewhere (the empty canvas) ask Claude through the same line.
@@ -131,7 +136,7 @@ export function Dock({ editor }: { editor: Editor }) {
     if (!prompt.trim()) setFocused(false);
   };
 
-  const examples = selection.length ? EXAMPLES.selection : scene?.objects.length ? EXAMPLES.scene : EXAMPLES.empty;
+  const examples = fresh || !scene?.objects.length ? EXAMPLES.empty : selection.length ? EXAMPLES.selection : EXAMPLES.scene;
   const example = examples[tick % examples.length];
   const rotating = ready && !running && !prompt;
   useEffect(() => {
@@ -151,8 +156,12 @@ export function Dock({ editor }: { editor: Editor }) {
   // In the field the conversation is always there, even a brand new one.
   const shown = focused || signingIn || running;
   const last = job && !job.running && thread.at(-1)?.prompt === job.prompt;
-  const engineLabel = chosen === 'local' ? 'Claude Code' : 'Ключ API';
-  const openEngines = (e: React.MouseEvent<HTMLButtonElement>) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top - 6 }); };
+  const engineItems: MenuItem[] = [
+    { label: local?.available ? (local.loggedIn ? 'Claude Code — ваш аккаунт' : 'Claude Code — нужен вход') : 'Claude Code не установлен', checked: chosen === 'local', disabled: !local?.available, onSelect: () => { setEngine('local'); write(ENGINE, 'local'); input.current?.focus(); } },
+    { label: 'Ключ Anthropic API', checked: chosen === 'api', onSelect: () => { setEngine('api'); write(ENGINE, 'api'); input.current?.focus(); } },
+    ...(chosen === 'local' && local?.loggedIn ? ['separator' as const, { label: 'Войти другим аккаунтом', onSelect: () => { setLocal(l => l && { ...l, loggedIn: false }); signIn(); } }] : []),
+    ...(key ? ['separator' as const, { label: 'Забыть ключ', danger: true, onSelect: () => { write(KEY, ''); setKey(''); } }] : []),
+  ];
 
   return (
     <div ref={root} className={`dock${focused ? ' is-focused' : ''}${running ? ' is-running' : ''}`}
@@ -166,13 +175,14 @@ export function Dock({ editor }: { editor: Editor }) {
           <div className="dock-fold-inner">
             <div className="dock-panel">
               <div className="thread-head">
-                {setup
-                  ? <span className="thread-title"><ClaudeMark size={13} />Claude</span>
-                  : <button className="thread-title" disabled={running || !editor.talks.length} onMouseDown={e => e.preventDefault()}
-                      onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTalkMenu({ x: r.left, y: r.top - 6 }); }}>
-                      <ClaudeMark size={13} /><span>{editor.talks.length > 1 || !editor.talk ? editor.talk?.title ?? 'Новый разговор' : 'Claude'}</span>{editor.talks.length > 0 && <ChevronDown size={12} />}
-                    </button>}
-                <button className="dock-engine" onMouseDown={e => e.preventDefault()} onClick={openEngines} disabled={running}>{engineLabel}<ChevronDown size={12} /></button>
+                <button className="thread-title" disabled={running} onMouseDown={e => e.preventDefault()}
+                  onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTalkMenu({ x: r.left, y: r.top - 6 }); }}>
+                  <ClaudeMark size={14} /><span>{!setup && editor.talks.length > 1 ? editor.talk?.title ?? 'Новый разговор' : 'Claude'}</span><ChevronDown size={12} />
+                </button>
+                {!setup && hasScene && <div className="dock-mode" role="radiogroup">
+                  <button role="radio" aria-checked={mode === 'edit'} onMouseDown={e => e.preventDefault()} onClick={() => setMode('edit')} disabled={running}>Править</button>
+                  <button role="radio" aria-checked={mode === 'new'} onMouseDown={e => e.preventDefault()} onClick={() => setMode('new')} disabled={running}>С нуля</button>
+                </div>}
                 {!setup && <button className="icon" aria-label="Новый разговор" data-tip="Новый разговор" disabled={running || !editor.talk}
                   onMouseDown={e => e.preventDefault()} onClick={() => { editor.newConversation(); input.current?.focus(); }}><SquarePen size={14} /></button>}
               </div>
@@ -226,7 +236,7 @@ export function Dock({ editor }: { editor: Editor }) {
                   {thread.slice(0, last ? -1 : undefined).slice(-6).map((t, i) => (
                     <div key={i} className="turn">
                       <p className="turn-you">{t.prompt}</p>
-                      {t.error ? <p className="turn-error">{t.error}</p> : <p className="turn-claude">{t.result}</p>}
+                      {t.error ? <p className="turn-error">{t.error}</p> : <p className={`turn-claude${t.result === 'Остановлено' ? ' is-muted' : ''}`}>{t.result}</p>}
                     </div>
                   ))}
                   {job && (
@@ -241,7 +251,7 @@ export function Dock({ editor }: { editor: Editor }) {
                         : job.error
                           ? <div className="turn-end"><p className="turn-error">{job.error}</p>
                               <button className="chip-button" onClick={() => editor.generate(job.prompt, chosen, key)}><RotateCcw size={12} />Ещё раз</button></div>
-                          : <div className="turn-end"><p className="turn-claude">{job.result}</p>
+                          : <div className="turn-end"><p className={`turn-claude${job.result === 'Остановлено' ? ' is-muted' : ''}`}>{job.result}</p>
                               {job.changed && <button className="chip-button" onClick={() => { editor.undo(); editor.dismissJob(); }}><Undo2 size={12} />Отменить</button>}</div>}
                     </div>
                   )}
@@ -261,7 +271,8 @@ export function Dock({ editor }: { editor: Editor }) {
           </div>
           <span className="dock-sep" />
           <div className={`dock-input${ready ? '' : ' is-off'}`} onMouseDown={e => { if (e.target !== input.current) { e.preventDefault(); input.current?.focus(); } }}>
-            {selection.length > 0 && <span className="dock-chip">
+            {fresh && <span className="dock-chip is-new">С нуля</span>}
+            {selection.length > 0 && !fresh && <span className="dock-chip">
               <Box size={12} />{selection.length === 1 ? selection[0] : `${selection.length} ${plural(selection.length)}`}
             </span>}
             <div className="dock-field">
@@ -284,18 +295,14 @@ export function Dock({ editor }: { editor: Editor }) {
           </div>
         </div>
       </div>
+      {/* One menu for the conversation and who does the work. */}
       {talkMenu && <Menu x={talkMenu.x} y={talkMenu.y} above onClose={() => setTalkMenu(null)} items={[
-        { heading: 'Разговоры' },
-        ...editor.talks.map(t => ({ label: t.title, checked: t.id === editor.talk?.id, onSelect: () => { editor.openConversation(t.id); input.current?.focus(); } })),
-        'separator' as const,
-        { label: 'Новый разговор', onSelect: () => { editor.newConversation(); input.current?.focus(); } },
+        ...(editor.talks.length ? [{ heading: 'Разговоры' }, ...editor.talks.map(t => ({ label: t.title, checked: t.id === editor.talk?.id, onSelect: () => { editor.openConversation(t.id); input.current?.focus(); } })),
+          { label: 'Новый разговор', onSelect: () => { editor.newConversation(); input.current?.focus(); } }, 'separator' as const] : []),
+        { heading: 'Собирает' },
+        ...engineItems,
       ]} />}
-      {menu && <Menu x={menu.x} y={menu.y} above onClose={() => setMenu(null)} items={[
-        { label: local?.available ? (local.loggedIn ? 'Claude Code — ваш аккаунт' : 'Claude Code — нужен вход') : 'Claude Code не установлен', checked: chosen === 'local', disabled: !local?.available, onSelect: () => { setEngine('local'); write(ENGINE, 'local'); input.current?.focus(); } },
-        { label: 'Ключ Anthropic API', checked: chosen === 'api', onSelect: () => { setEngine('api'); write(ENGINE, 'api'); input.current?.focus(); } },
-        ...(chosen === 'local' && local?.loggedIn ? ['separator' as const, { label: 'Войти другим аккаунтом', onSelect: () => { setLocal(l => l && { ...l, loggedIn: false }); signIn(); } }] : []),
-        ...(key ? ['separator' as const, { label: 'Забыть ключ', danger: true, onSelect: () => { write(KEY, ''); setKey(''); } }] : []),
-      ]} />}
+      {menu && <Menu x={menu.x} y={menu.y} above onClose={() => setMenu(null)} items={engineItems} />}
     </div>
   );
 }

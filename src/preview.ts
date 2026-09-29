@@ -28,7 +28,8 @@ const card = (cls: string, x: number, t: typeof REST, body: string) =>
   `<svg class="${cls}" x="${x}" y="0" width="${CARD}" height="${CARD}" viewBox="35 35 ${CARD} ${CARD}">`
   + `<rect x="35" y="35" width="${CARD}" height="${CARD}" fill="${t.page}"/>${body}</svg>`;
 
-export function previewSvg(source: Scene) {
+// With `focus`, the other blocks fade, so one detail can be judged in place.
+export function previewSvg(source: Scene, focus?: string[]) {
   const scene = { ...source, objects: source.objects.filter(p => !p.hidden) };
   // Hover frames, drawn in the rest framing as the site does.
   const at = (boxes: { x: number; y: number; z: number; w: number; d: number; h: number }[]) =>
@@ -42,7 +43,7 @@ export function previewSvg(source: Scene) {
   const { scale } = fit(scene.objects);
   const width = CARD * 3 + GAP * 2;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * PX}" height="${CARD * PX}" viewBox="0 0 ${width} ${CARD}">`
-    + `<style>${style('rest', REST, scale)}${style('hover', HOVER, scale)}</style>`
+    + `<style>${style('rest', REST, scale)}${style('hover', HOVER, scale)}${focus?.length ? `[data-object]{opacity:.28}${focus.map(id => `[data-object="${id}"]`).join(',')}{opacity:1}` : ''}</style>`
     + `<rect width="${width}" height="${CARD}" fill="#ffffff"/>`
     + card('rest', 0, REST, rest) + card('hover', CARD + GAP, HOVER, middle) + card('hover', 2 * (CARD + GAP), HOVER, open) + '</svg>';
   return svg;
