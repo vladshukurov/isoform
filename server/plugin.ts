@@ -16,6 +16,9 @@ const send = (res: ServerResponse, status: number, value: unknown) => {
 };
 
 // A tiny local API over files/ and templates/, only in the dev server.
+let editorState: { file?: string | null; selection?: string[]; mode?: string; at?: number } = {};
+let lastMcp: { tool: string; file?: string; at: number } | null = null;
+
 export function scenesApi(): Plugin {
   return {
     name: 'isoform-files',
@@ -33,7 +36,17 @@ export function scenesApi(): Plugin {
           const [, kind, name, action] = (req.url ?? '').split('?')[0].split('/').map(decodeURIComponent);
           if (req.method === 'GET' && kind === 'library') {
             const files = list('files');
-            return send(res, 200, { root, files: files.scenes, broken: files.broken, templates: list('templates').scenes });
+            return send(res, 200, { root, node: process.execPath, files: files.scenes, broken: files.broken, templates: list('templates').scenes, mcp: lastMcp });
+          }
+          // The bridge between agents (MCP) and the open editor: what's open and
+          // selected, and what the agent is doing right now.
+          if (kind === 'state' && req.method === 'POST') { editorState = { ...((await body(req)) as object), at: Date.now() }; return send(res, 200, { ok: true }); }
+          if (kind === 'state' && req.method === 'GET') return send(res, 200, editorState);
+          if (kind === 'mcp-activity' && req.method === 'POST') {
+            const { tool, file } = ((await body(req)) ?? {}) as { tool?: unknown; file?: unknown };
+            lastMcp = { tool: String(tool ?? ''), file: typeof file === 'string' ? file : undefined, at: Date.now() };
+            server.ws.send({ type: 'custom', event: 'isoform:mcp', data: lastMcp });
+            return send(res, 200, { ok: true });
           }
           if (kind === 'agent' && req.method === 'GET') { const cli = claudeCli(); return send(res, 200, { available: !!cli, loggedIn: !!cli?.loggedIn, version: cli?.version }); }
           if (kind === 'agent' && req.method === 'POST') return await runAgent(req, res, ((await body(req)) ?? {}) as Record<string, unknown>);

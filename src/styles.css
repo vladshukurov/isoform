@@ -348,3 +348,36 @@ button.tile:disabled { opacity: 1; }
 .tools-row { margin: -2px -4px 0; }
 /* Toggles in the panels read as on: soft blue, not the tool bar's solid blue. */
 .panel button.icon[aria-pressed="true"], .panel button.icon[aria-pressed="true"]:hover { background: var(--blue-soft); color: var(--blue-text); }
+
+/* Agents: the MCP connection card, dialog and activity chip */
+.agents-art {
+  display: flex; align-items: center; justify-content: center; gap: 8px; height: 88px;
+  background-color: #2a2c30;
+  background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.agents-art span { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: #3a3d42; color: #e9eaec; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.agents-art span.is-main { width: 56px; height: 56px; border-radius: 14px; background: #fff; color: #1e1e1e; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+.agents-card { position: relative; margin: 8px; border-radius: 12px; overflow: hidden; background: var(--bg); box-shadow: 0 0 0 1px var(--border), 0 4px 12px rgba(0,0,0,.06); flex: none; }
+.agents-card-body { display: grid; gap: 6px; padding: 12px; }
+.agents-card-body h3 { font-size: 12px; }
+.agents-card-body p { color: var(--muted); line-height: 16px; }
+.agents-card-body .row { margin-top: 4px; gap: 6px; }
+.button.is-quiet { background: none; color: var(--muted); }
+.button.is-quiet:hover { color: var(--text); background: var(--row-hover); }
+.agents-card-close { position: absolute; top: 6px; right: 6px; color: rgba(255,255,255,.6) !important; }
+.agents-card-close:hover { background: rgba(255,255,255,.1) !important; }
+.agents-dialog { display: grid; gap: 14px; padding: 16px; }
+.agents-step { display: grid; gap: 6px; }
+.agents-step p { color: var(--muted); }
+.agents-step .copy { margin-top: 0; }
+.agents-status { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.agents-status i, .agent-activity i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
+.agents-status.is-on i { background: #1bc47d; }
+.agent-activity { position: absolute; left: 12px; top: 12px; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 12px; background: var(--bg); box-shadow: var(--shadow); color: var(--text); pointer-events: none; }
+.agent-activity i { background: #1bc47d; animation: pulse 1.2s ease-in-out infinite; }
+.agents-card .agents-art { height: 72px; gap: 6px; }
+.agents-card .agents-art span { width: 30px; height: 30px; border-radius: 8px; }
+.agents-card .agents-art span svg { width: 15px; height: 15px; }
+.agents-card .agents-art span.is-main { width: 44px; height: 44px; border-radius: 12px; }
+.agents-card .agents-art span.is-main svg { width: 20px; height: 20px; }

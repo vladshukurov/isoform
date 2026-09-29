@@ -44,6 +44,9 @@ export function useEditor() {
   const [loaded, setLoaded] = useState(false);
   const [local, setLocal] = useState(false);
   const [root, setRoot] = useState('');
+  const [nodePath, setNodePath] = useState('');
+  // The last thing an agent did through MCP.
+  const [agent, setAgent] = useState<api.Activity | null>(null);
   const [current, setCurrentState] = useState<string | null>(null);
   const [selection, setSelectionState] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -91,6 +94,8 @@ export function useEditor() {
       setFiles(latest.current);
       setTemplates(byName(library.templates));
       setRoot(library.root);
+      setNodePath(library.node ?? '');
+      setAgent(library.mcp ?? null);
       setLocal(library.local);
       broken.current = new Set(library.broken?.map(b => b.name));
       if (library.broken?.length) setMessage(`Не читается: ${library.broken.map(b => `${b.name}.json — ${b.error}`).join('; ')}`);
@@ -144,9 +149,18 @@ export function useEditor() {
         setMessage(`${name}.json: ${(error as Error).message}`);
       }
     };
+    const onAgent = (activity: api.Activity) => setAgent(activity);
     import.meta.hot?.on('isoform:file', onFile);
-    return () => import.meta.hot?.off('isoform:file', onFile);
+    import.meta.hot?.on('isoform:mcp', onAgent);
+    return () => { import.meta.hot?.off('isoform:file', onFile); import.meta.hot?.off('isoform:mcp', onAgent); };
   }, []);
+
+  // What's open and selected, for agents asking «what am I looking at».
+  useEffect(() => {
+    if (!loaded) return;
+    const timer = setTimeout(() => api.publishState({ file: current, selection, mode }), 150);
+    return () => clearTimeout(timer);
+  }, [loaded, current, selection, mode]);
 
   useEffect(() => {
     if (loaded) history.replaceState(null, '', current ? `?file=${current}` : location.pathname);
@@ -496,7 +510,7 @@ export function useEditor() {
 
   return {
     job, generate, stopGenerating, dismissJob: () => setJob(null), aiOpen, setAiOpen,
-    files, templates, loaded, local, root, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
+    files, templates, loaded, local, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,

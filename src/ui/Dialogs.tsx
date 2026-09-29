@@ -4,7 +4,7 @@ import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import type { Scene } from '../model';
 
-function Dialog({ title, onClose, children, wide }: { title: string; onClose?: () => void; children: ReactNode; wide?: boolean }) {
+export function Dialog({ title, onClose, children, wide }: { title: string; onClose?: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
     window.addEventListener('keydown', key);
@@ -75,7 +75,7 @@ export function SeriesDialog({ editor, onClose }: { editor: Editor; onClose: () 
   );
 }
 
-function CopyBlock({ text, mono }: { text: string; mono?: boolean }) {
+export function CopyBlock({ text, mono }: { text: string; mono?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className={`copy${mono ? ' is-mono' : ''}`}>
@@ -86,41 +86,6 @@ function CopyBlock({ text, mono }: { text: string; mono?: boolean }) {
         setTimeout(() => setCopied(false), 1200);
       }}>{copied ? <Check size={13} /> : <Copy size={13} />}</button>
     </div>
-  );
-}
-
-// Illustrations don't have to be assembled by hand: an agent in this folder
-// knows the format and the series' rules (AGENTS.md) and writes the file.
-export function AgentDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
-  const file = editor.current ?? 'vault';
-  const create = `Собери новую иллюстрацию для карточки «Хранилище паролей»: сейф с приоткрытой дверцей, при наведении дверца открывается. Сохрани в files/vault.json.`;
-  const refine = `Доработай files/${file}.json: сделай конструкцию проще и добавь движение при наведении — верхний слой приподнимается.`;
-  if (editor.local) return (
-    <Dialog title="С Claude или Codex" onClose={onClose}>
-      <div className="steps-plain">
-        <p>Агент работает с файлами на компьютере, а эта копия редактора хранит сцены в браузере. Запустите локальную версию:</p>
-        <CopyBlock text={'cd isoform\nnpm install\nnpm run dev'} mono />
-        <p>Или скачайте JSON сцены, попросите агента поправить его и перетащите файл обратно в окно.</p>
-      </div>
-    </Dialog>
-  );
-  return (
-    <Dialog title="С Claude или Codex" onClose={onClose}>
-      <ol className="steps">
-        <li>
-          <b>Откройте эту папку</b> в Claude Code или Codex
-          <CopyBlock text={editor.root} mono />
-        </li>
-        <li>
-          <b>Опишите иллюстрацию</b> — что изображено и что происходит при наведении. Правила серии агент прочитает в AGENTS.md.
-          <CopyBlock text={create} />
-        </li>
-        <li>
-          <b>Файл сразу появится здесь.</b> Доведите руками или попросите поправить:
-          <CopyBlock text={refine} />
-        </li>
-      </ol>
-    </Dialog>
   );
 }
 

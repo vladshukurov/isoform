@@ -32,7 +32,7 @@ export function FileHeader({ editor, dark, onDark, onNew, onSeries, onAgent, onS
     { label: 'Удалить', danger: true, disabled: !current, onSelect: onDelete },
     'separator',
     { label: 'Серия', onSelect: onSeries },
-    { label: 'Claude Code или Codex в терминале', onSelect: onAgent },
+    { label: 'Подключить агентов…', onSelect: onAgent },
     { label: 'Горячие клавиши', shortcut: '?', onSelect: onShortcuts },
     'separator',
     { label: 'Тёмная тема', checked: dark, onSelect: onDark },

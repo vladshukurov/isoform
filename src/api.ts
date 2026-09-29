@@ -5,7 +5,8 @@ import { formatScene } from './format';
 import { validateScene, type Scene } from './model';
 
 type Entry = { name: string; scene: Scene };
-export type Library = { root: string; files: Entry[]; templates: Entry[]; broken?: { name: string; error: string }[]; local: boolean };
+export type Activity = { tool: string; file?: string; at: number };
+export type Library = { root: string; node?: string; files: Entry[]; templates: Entry[]; broken?: { name: string; error: string }[]; mcp?: Activity | null; local: boolean };
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -54,6 +55,11 @@ export async function loadLibrary(): Promise<Library> {
     return { root: '', files: local.list(), templates: bundledTemplates(), local: true };
   }
 }
+
+// Tell the dev server what's open, so an agent (MCP get_editor_state) can see it.
+export const publishState = (state: { file: string | null; selection: string[]; mode: string }) => {
+  if (!offline) fetch('/api/state', json('POST', state)).catch(() => undefined);
+};
 
 export const readFile = async (name: string) => (await call<{ scene: Scene }>(file(name))).scene;
 

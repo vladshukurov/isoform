@@ -4,7 +4,8 @@ import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
 import { Canvas } from './ui/Canvas';
-import { AgentDialog, ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
+import { AgentActivity, AgentsCard, AgentsDialog } from './ui/Agents';
+import { ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
 import { FileHeader } from './ui/FileHeader';
 import { Generate } from './ui/Generate';
 import { LayersPanel } from './ui/LayersPanel';
@@ -150,6 +151,7 @@ export function App() {
           <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={13} /></button>
         </div>}
         <LayersPanel editor={editor} />
+        <AgentsCard editor={editor} onSetup={() => setDialog('agent')} />
         <PanelResizer side="left" width={widths.left} onWidth={left => setWidths(w => ({ ...w, left }))} />
       </aside>
 
@@ -164,6 +166,7 @@ export function App() {
                 <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button></>}
           <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
         </div>}
+        <AgentActivity editor={editor} />
         {editor.aiOpen && <Generate editor={editor} onClose={() => editor.setAiOpen(false)} />}
         {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
       </main>
@@ -177,7 +180,7 @@ export function App() {
         <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)}
           onAgent={() => { editor.createFile(); setDialog(null); editor.setAiOpen(true); }} />}
       {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
-      {dialog === 'agent' && <AgentDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'agent' && <AgentsDialog editor={editor} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"
         onConfirm={editor.deleteFile} onClose={() => setDialog(null)} />}
