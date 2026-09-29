@@ -92,3 +92,4 @@ body { background: var(--canvas); }
   .ds-motion-row { grid-template-columns: 70px 60px 1fr; }
   .ds-motion-row > span:last-child { grid-column: 1 / -1; }
 }
+.ds-motion-panel { width: 280px !important; }

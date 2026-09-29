@@ -4,19 +4,21 @@
 import type { Piece } from '../model';
 import type { Job, Step } from './job';
 
-export type LocalAgent = { available: boolean; loggedIn?: boolean; version?: string };
+type Cli = { available: boolean; loggedIn?: boolean; version?: string };
+// Claude Code, and Codex beside it.
+export type LocalAgent = Cli & { codex?: Cli };
 export const localAgent = (): Promise<LocalAgent> => fetch('/api/agent').then(r => r.ok ? r.json() : { available: false }).catch(() => ({ available: false }));
 
 export async function runWithClaudeCode(job: Job) {
   const response = await fetch('/api/agent', {
     method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ file: job.file, prompt: job.prompt, selection: job.selection, fresh: !job.scene.objects.length, session: job.session }),
+    body: JSON.stringify({ file: job.file, prompt: job.prompt, selection: job.selection, fresh: !job.scene.objects.length, session: job.session, agent: job.agent, model: job.model }),
   });
   return consume(response, job);
 }
 
 // A run already going on the server (the page was reloaded, or opened later).
-export const agentRuns = () => fetch('/api/agent/runs').then(r => r.ok ? r.json() as Promise<{ file: string; prompt: string }[]> : []).catch(() => []);
+export const agentRuns = () => fetch('/api/agent/runs').then(r => r.ok ? r.json() as Promise<{ file: string; prompt: string; at?: number }[]> : []).catch(() => []);
 export const watchClaudeCode = async (job: Job) => consume(await fetch(`/api/agent/watch/${job.file}`, { signal: job.signal }), job);
 // Leaving the page never stops Claude; only this does.
 export const stopClaudeCode = (file: string) => fetch(`/api/agent/stop/${file}`, { method: 'POST' }).catch(() => undefined);
@@ -57,6 +59,13 @@ async function consume(response: Response, job: Job) {
 // Signing in to Claude from the editor: the browser opens, the page shows a code.
 export async function startLogin() {
   const r = await fetch('/api/agent/login', { method: 'POST' });
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.error ?? 'Вход не запустился');
+  return body as { url: string };
+}
+// Codex signs in to ChatGPT in the browser and hears back by itself.
+export async function startCodexLogin() {
+  const r = await fetch('/api/agent/codex-login', { method: 'POST' });
   const body = await r.json();
   if (!r.ok) throw new Error(body.error ?? 'Вход не запустился');
   return body as { url: string };

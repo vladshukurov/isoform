@@ -9,7 +9,7 @@ import type { Editor } from '../editor';
 import { BOX_KEYS, hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
 import { Button, IconButton, Segmented, TextField } from './kit';
 import { NumberField } from './NumberField';
-import { Timeline } from './Timeline';
+import { Character, Timeline } from './Motion';
 
 const FIELDS: [BoxKey, string][] = [['x', 'X'], ['y', 'Y'], ['z', 'Z'], ['w', 'W'], ['d', 'D'], ['h', 'H']];
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
@@ -49,12 +49,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         <CardPreview scene={scene} hold={pinned || playing !== null} />
       </div>}
 
-      {hover && (
-        <section>
-          <Segmented label="Характер движения" wide value={scene.motion} onChange={motion => editor.change(s => ({ ...s, motion }))}
-            options={[{ value: 'mechanical', label: 'Механизм', tip: 'Детали ездят как настоящие механизмы' }, { value: 'layered', label: 'Раскрытие', tip: 'Схема раскрывается слоями' }]} />
-        </section>
-      )}
+      {hover && <Character editor={editor} />}
 
       {selected.length > 1 && (
         <section>
@@ -142,7 +137,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         </section>
       )}
 
-      {hover && <Timeline editor={editor} onPlay={play} playing={playing} />}
+      {hover && <Timeline editor={editor} onPlay={play} />}
       {hover && !selected.length && !scene.objects.some(p => hoverKind(p) !== 'rest') && (
         <section><p className="panel-hint"><b>Ничего не двигается.</b> Выделите блок и сдвиньте или измените его здесь — так он поведёт себя при наведении.</p></section>
       )}

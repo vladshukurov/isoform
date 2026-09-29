@@ -18,6 +18,9 @@ export type Piece = Box & {
   // can't be picked on the canvas.
   hidden?: boolean;
   locked?: boolean;
+  // Editor only: blocks with the same group move, hide and select together
+  // and sit next to each other in the painter order. The site ignores it.
+  group?: string;
 };
 
 // Mechanical scenes move like real parts (in-out); layered ones open like an
@@ -73,8 +76,17 @@ export function validateScene(input: unknown): Scene {
     for (const k of ['w', 'd', 'h'] as const) if (p[k] <= 0 || (p.hover?.[k] ?? 1) <= 0) fail(`${p.id}.${k} ≤ 0`);
     if (p.delay !== undefined && !(Number.isFinite(p.delay) && p.delay >= 0)) fail(`${p.id}.delay — секунды ≥ 0`);
     for (const k of ['hidden', 'locked'] as const) if (p[k] !== undefined && typeof p[k] !== 'boolean') fail(`${p.id}.${k} — true или false`);
+    if (p.group !== undefined && (typeof p.group !== 'string' || !p.group)) fail(`${p.id}.group — имя группы`);
   }
   return s;
+}
+
+// The members of a group, in painter order.
+export const groupOf = (scene: Scene, group: string) => scene.objects.filter(p => p.group === group);
+export function uniqueGroup(scene: Scene, base = 'group') {
+  const taken = new Set(scene.objects.map(p => p.group).filter(Boolean));
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
 }
 
 export function uniqueId(scene: Scene, base: string) {

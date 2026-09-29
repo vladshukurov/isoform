@@ -54,6 +54,12 @@ export function useTalks(file: string | null) {
     begin, record, setSession,
     // A fresh conversation: the next message starts one; the old ones stay.
     fresh: (file: string) => pick(file, null),
+    // A conversation gone for good; the scene keeps everything it did.
+    remove: (file: string, id: string) => update(all => {
+      const f = all[file];
+      if (!f) return all;
+      return { ...all, [file]: { current: f.current === id ? null : f.current, list: f.list.filter(t => t.id !== id) } };
+    }),
     open: (file: string, id: string) => pick(file, id),
   };
 }

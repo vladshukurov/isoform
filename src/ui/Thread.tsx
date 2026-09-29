@@ -21,7 +21,7 @@ export function Thread({ editor, ideas, onAsk }: { editor: Editor; ideas: string
     if (f === 'api') c.choose('api');
     if (f === 'key') { c.choose('api'); c.forgetKey(); }
     if (f === 'login') c.switchAccount();
-    if (f === 'install') { c.choose('local'); c.refresh(); }
+    if (f === 'install') c.refresh();
   };
   return <ThreadView thread={claude.thread} job={claude.job} checking={!c.ready && !c.need} ideas={ideas}
     onAsk={onAsk} onRetry={prompt => claude.generate(prompt)} onFix={fix} onUndo={() => { editor.undo(); claude.dismiss(); }} />;
@@ -56,6 +56,8 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
     );
   };
   const last = job && !job.running && thread.at(-1)?.prompt === job.prompt;
+  // Still before the first write after 20 s: say what's going on and for how long.
+  const slow = !!job?.running && now - job.at > 20000 && !job.steps.some(st => /каркас|блоки|деталь/i.test(st.text));
 
   return (
     <div className="thread" ref={log} aria-live="polite">
@@ -71,6 +73,7 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
       {job && (
         <div className="turn is-current">
           <p className="turn-you">{job.prompt}</p>
+          {job.running && slow && <p className="turn-hint">Придумывает образ — это самый долгий шаг, обычно 1–3 минуты. Блоки появятся на холсте, как только начнётся запись.</p>}
           {job.running
             ? <div className="turn-live">
                 <Dot live />

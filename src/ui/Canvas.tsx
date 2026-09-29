@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Art } from '../Art';
+import { hoverAt } from '../anim';
 import { Button } from './kit';
 import type { Editor } from '../editor';
 import { AXIS, faces, outline, path, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
@@ -59,8 +60,11 @@ export function Canvas({ editor }: { editor: Editor }) {
   }, []);
 
   const objects = useMemo(() => (scene?.objects ?? []).filter(p => !p.hidden), [scene]);
-  const boxOf = (p: typeof objects[number]) => mode === 'hover' ? hoverBox(p) : pick(p);
-  const boxes = useMemo(() => objects.map(boxOf), [objects, mode]);
+  // Scrubbing the timeline shows that moment of the hover instead of its end.
+  const scrub = mode === 'hover' ? editor.scrub : null;
+  const frame = useMemo(() => scrub === null || !scene ? null : new Map(hoverAt(objects, scene.motion, scrub).map((b, i) => [objects[i].id, b])), [objects, scrub, scene?.motion]);
+  const boxOf = (p: typeof objects[number]) => frame?.get(p.id) ?? (mode === 'hover' ? hoverBox(p) : pick(p));
+  const boxes = useMemo(() => objects.map(boxOf), [objects, mode, frame]);
   const locked = useMemo(() => new Set(objects.filter(p => p.locked).map(p => p.id)), [objects]);
   const selected = objects.filter(p => selection.includes(p.id));
 
@@ -117,6 +121,8 @@ export function Canvas({ editor }: { editor: Editor }) {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur); };
   });
 
+  // The last press on a block, to tell a second click (one block out of its group).
+  const lastDown = useRef({ id: '', at: 0 });
   if (!scene || !view) return <div className="canvas" ref={host} />;
 
   const toScreen = (p: Vec2) => ({ x: view.ox + p.x * view.s, y: view.oy + p.y * view.s });
@@ -158,15 +164,24 @@ export function Canvas({ editor }: { editor: Editor }) {
       const b = boxOf(piece);
       return startDraw(e, face === 'top' ? b.z + b.h + GAP : GROUND);
     }
+    // A click picks the block's whole group; a second click on it picks the block alone.
+    const again = lastDown.current.id === id && e.timeStamp - lastDown.current.at < 400;
+    lastDown.current = { id, at: e.timeStamp };
     let ids = selection;
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
-      ids = selection.includes(id) ? selection.filter(i => i !== id) : [...selection, id];
+      const own = editor.withGroups([id]);
+      ids = selection.includes(id) ? selection.filter(i => !own.includes(i)) : [...new Set([...selection, ...own])];
       editor.setSelection(ids);
       if (!ids.includes(id)) return;
-    } else if (!selection.includes(id)) {
+    } else if (again && piece.group) {
       ids = [id];
       editor.setSelection(ids);
+    } else if (!selection.includes(id)) {
+      ids = editor.withGroups([id]);
+      editor.setSelection(ids);
     }
+    // A frame of the motion is for looking: picking works, moving waits.
+    if (scrub !== null) return;
     const start = new Map(objects.filter(p => ids.includes(p.id) && !p.locked).map(p => [p.id, boxOf(p)]));
     update({ kind: 'move', x: e.clientX, y: e.clientY, vertical: e.altKey, start, moved: false });
     capture(e);
@@ -297,7 +312,7 @@ export function Canvas({ editor }: { editor: Editor }) {
   };
   for (let i = lo; i <= hi; i += 10) grid.push(line({ x: i, y: lo }, { x: i, y: hi }), line({ x: lo, y: i }, { x: hi, y: i }));
 
-  const single = selected.length === 1 && !selected[0].locked ? boxOf(selected[0]) : undefined;
+  const single = selected.length === 1 && !selected[0].locked && scrub === null ? boxOf(selected[0]) : undefined;
   const moving = drag?.kind === 'move' || drag?.kind === 'size';
   const draft = drag?.kind === 'draw' ? {
     x: Math.min(drag.from.x, drag.to.x), y: Math.min(drag.from.y, drag.to.y), z: drag.z,
@@ -363,7 +378,7 @@ export function Canvas({ editor }: { editor: Editor }) {
           x={Math.min(drag.x, drag.to.x)} y={Math.min(drag.y, drag.to.y)}
           width={Math.abs(drag.to.x - drag.x)} height={Math.abs(drag.to.y - drag.y)} />}
       </svg>
-      {mode === 'hover' && <div className="mode-chip"><i />Состояние при наведении</div>}
+      {mode === 'hover' && <div className="mode-chip"><i />{scrub === null ? 'Состояние при наведении' : `Кадр ${scrub.toFixed(2).replace('.', ',')} с`}</div>}
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
       {!objects.length && tool === 'move' && !editor.claude.running && <div className="canvas-empty">
         <svg className="canvas-empty-ghost" width="120" height="104" viewBox="-60 -70 120 104" aria-hidden>

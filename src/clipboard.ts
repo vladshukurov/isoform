@@ -1,7 +1,7 @@
 // Copy and paste of blocks, within a file, across files and through the
 // system clipboard: pasted text may be our own payload, a whole scene JSON
 // (for example one an agent printed) or a bare list of blocks.
-import { cleanHover, GAP, uniqueId, validateScene, type Piece, type Scene } from './model';
+import { cleanHover, GAP, uniqueGroup, uniqueId, validateScene, type Piece, type Scene } from './model';
 
 const KIND = 'isoform/blocks';
 export const serialize = (pieces: Piece[]) => JSON.stringify({ kind: KIND, pieces });
@@ -27,10 +27,13 @@ export function paste(scene: Scene, pieces: Piece[], offset?: { x: number; y: nu
   const by = offset ?? { x: occupied ? maxX - minX + GAP : 0, y: 0, z: 0 };
   let next = scene;
   const ids: string[] = [];
+  // Copies of a group make a new group of their own.
+  const groups = new Map<string, string>();
   for (const p of pieces) {
     const id = uniqueId(next, p.id);
+    if (p.group && !groups.has(p.group)) groups.set(p.group, uniqueGroup(next, p.group.replace(/-\d+$/, '')));
     const hover = p.hover && Object.fromEntries(Object.entries(p.hover).map(([k, v]) => [k, k in by ? v + by[k as 'x'] : v]));
-    next = { ...next, objects: [...next.objects, cleanHover({ ...p, id, x: p.x + by.x, y: p.y + by.y, z: p.z + by.z, hover, locked: undefined, hidden: undefined })] };
+    next = { ...next, objects: [...next.objects, cleanHover({ ...p, id, x: p.x + by.x, y: p.y + by.y, z: p.z + by.z, hover, locked: undefined, hidden: undefined, group: p.group && groups.get(p.group) })] };
     ids.push(id);
   }
   return { scene: next, ids };

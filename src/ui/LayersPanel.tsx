@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Box, Eye, EyeOff, Lock, LockOpen, TriangleAlert } from 'lucide-react';
+import { Box, ChevronDown, ChevronRight, Eye, EyeOff, Folder, FolderOpen, Lock, LockOpen, TriangleAlert } from 'lucide-react';
 import { Glyph } from './Glyph';
 import { ENTER } from '../anim';
 import type { Editor } from '../editor';
@@ -19,6 +19,9 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const anchor = useRef<string | null>(null);
   const dragging = useRef<string[]>([]);
+  // Folded groups, and the group being renamed; the panel's own state.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const [naming, setNaming] = useState<string | null>(null);
   const flags = useMemo(() => scene ? overlaps(scene) : new Map<string, Set<string>>(), [scene]);
   if (!scene) return <div className="layers" />;
   const list = [...scene.objects].reverse();
@@ -52,16 +55,52 @@ export function LayersPanel({ editor }: { editor: Editor }) {
       </EmptyState>
     </div>
   );
+  // A group's header row: fold, select all its blocks, rename, hide, lock, drag.
+  const groupRow = (name: string) => {
+    const members = scene.objects.filter(o => o.group === name), ids = members.map(o => o.id);
+    const all = ids.every(id => selection.includes(id)), open = !folded.has(name);
+    const hidden = members.every(o => o.hidden), locked = members.every(o => o.locked);
+    return (
+      <div key={`group:${name}`} className={['layer', 'is-group', all && 'is-selected', hidden && 'is-hidden', locked && 'is-locked'].filter(Boolean).join(' ')} draggable={naming !== name}
+        onClick={e => editor.setSelection(e.metaKey || e.ctrlKey ? (all ? selection.filter(i => !ids.includes(i)) : [...new Set([...selection, ...ids])]) : ids)}
+        onDoubleClick={() => setNaming(name)}
+        onContextMenu={e => { e.preventDefault(); editor.setSelection(ids); setMenu({ x: e.clientX, y: e.clientY, items: pieceMenu(editor, ids) }); }}
+        onDragStart={e => { dragging.current = ids; e.dataTransfer.effectAllowed = 'move'; }}
+        onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDrop({ id: ids.at(-1)!, above: e.clientY < r.top + r.height / 2 }); }}
+        onDrop={e => { e.preventDefault(); if (drop) place(drop); setDrop(null); dragging.current = []; }}
+        onDragEnd={() => { setDrop(null); dragging.current = []; }}>
+        <button className="layer-caret" aria-label={open ? 'Свернуть' : 'Развернуть'} aria-expanded={open}
+          onClick={e => { e.stopPropagation(); setFolded(f => { const n = new Set(f); open ? n.add(name) : n.delete(name); return n; }); }}>
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+        <span className="layer-icon">{open ? <FolderOpen size={14} /> : <Folder size={14} />}</span>
+        {naming === name
+          ? <input className="layer-name" autoFocus defaultValue={name} onClick={e => e.stopPropagation()}
+              onBlur={e => { editor.renameGroup(name, e.target.value.trim()); setNaming(null); }}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setNaming(null); e.stopPropagation(); }}
+              onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
+          : <span className="layer-name">{name}</span>}
+        <span className="layer-count">{members.length}</span>
+        <button className={`layer-toggle${locked ? ' is-on' : ''}`} aria-label={locked ? 'Разблокировать группу' : 'Заблокировать группу'} data-tip={locked ? 'Разблокировать' : 'Заблокировать'}
+          onClick={e => { e.stopPropagation(); editor.toggle(ids, 'locked'); }}>{locked ? <Lock size={14} /> : <LockOpen size={14} />}</button>
+        <button className={`layer-toggle${hidden ? ' is-on' : ''}`} aria-label={hidden ? 'Показать группу' : 'Скрыть группу'} data-tip={hidden ? 'Показать' : 'Скрыть'}
+          onClick={e => { e.stopPropagation(); editor.toggle(ids, 'hidden'); }}>{hidden ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+      </div>
+    );
+  };
+
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
-      {list.map((p, i) => {
+      {list.flatMap((p, i) => {
+        const head = p.group && list[i - 1]?.group !== p.group ? [groupRow(p.group)] : [];
+        if (p.group && folded.has(p.group)) return head;
         const kind = hoverKind(p);
         const isSelected = selection.includes(p.id);
         // Neighbouring selected rows join into one block, as in Figma.
         const joinUp = isSelected && selection.includes(list[i - 1]?.id), joinDown = isSelected && selection.includes(list[i + 1]?.id);
-        const cls = ['layer', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden', p.locked && 'is-locked',
+        const cls = ['layer', p.group && 'is-member', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden', p.locked && 'is-locked',
           drop?.id === p.id && (drop.above ? 'drop-above' : 'drop-below')].filter(Boolean).join(' ');
-        return (
+        return [...head, (
           <div key={p.id} className={cls} draggable={editing !== p.id}
             onClick={e => click(p, e)}
             onDoubleClick={() => setEditing(p.id)}
@@ -111,7 +150,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
               {p.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
-        );
+        )];
       })}
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </div>

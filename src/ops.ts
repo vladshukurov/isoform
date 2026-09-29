@@ -49,8 +49,19 @@ export function rotate(pieces: Piece[]) {
 }
 
 // Delays stepping back to front in painter order: a wave through the scene.
-export function stagger(pieces: Piece[], step = .04) {
-  return new Map(pieces.map((p, i) => [p.id, +(i * step).toFixed(3)]));
+// Which block goes first in a wave: back to front in the painter order (the
+// series' default), the reverse, bottom up, top down, or all at once.
+export type WaveOrder = 'back' | 'front' | 'up' | 'down' | 'together';
+export function stagger(pieces: Piece[], step = .04, order: WaveOrder = 'back') {
+  if (order === 'together') return new Map(pieces.map(p => [p.id, 0]));
+  if (order === 'back' || order === 'front') {
+    const list = order === 'back' ? pieces : [...pieces].reverse();
+    return new Map(list.map((p, i) => [p.id, +(i * step).toFixed(3)]));
+  }
+  // Up and down go by level: blocks at the same height move together.
+  const level = (p: Piece) => order === 'up' ? p.z : -(p.z + p.h);
+  const levels = [...new Set(pieces.map(level))].sort((a, b) => a - b);
+  return new Map(pieces.map(p => [p.id, +(levels.indexOf(level(p)) * step).toFixed(3)]));
 }
 
 // count − 1 copies of the group, one after another along an axis with a

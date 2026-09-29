@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import { useClaude, type Run, type Workspace } from './ai/claude';
+import { onDisk } from './ai/connection';
 import * as clipboard from './clipboard';
 import * as ops from './ops';
 import { bounds } from './snap';
 import { formatScene } from './format';
 import {
-  cleanHover, depthSort, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueId, validateScene,
+  cleanHover, depthSort, GAP, GROUND, hoverBox, hoverKind, insertByDepth, PLATE, pick, uniqueGroup, uniqueId, validateScene,
   type Box, type Piece, type Scene,
 } from './model';
 
@@ -49,7 +50,11 @@ export function useEditor() {
   const [current, setCurrentState] = useState<string | null>(null);
   const [selection, setSelectionState] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>('rest');
+  const [mode, setModeState] = useState<Mode>('rest');
+  // A moment of the hover, in seconds, shown on the canvas instead of the
+  // end state: the motion tool's playhead. Leaving the hover tab clears it.
+  const [scrub, setScrub] = useState<number | null>(null);
+  const setMode = (next: Mode) => { setModeState(next); if (next !== 'hover') setScrub(null); };
   const [tool, setTool] = useState<Tool>('move');
   const [save, setSave] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -110,7 +115,7 @@ export function useEditor() {
   // has unsaved local edits. For an open file the change goes into undo.
   useEffect(() => {
     const onFile = async ({ name, removed }: { name: string; removed: boolean }) => {
-      if (running.current?.engine === 'local' && running.current.file === name) dirty.current.delete(name);
+      if (running.current && onDisk(running.current.engine) && running.current.file === name) dirty.current.delete(name);
       if (dirty.current.has(name)) return;
       if (removed) {
         if (!latest.current[name]) return;
@@ -169,7 +174,7 @@ export function useEditor() {
 
   const flush = async (keepalive = false) => {
     // While Claude Code writes a file, the disk is the truth: never save over it.
-    const busy = running.current?.engine === 'local' ? running.current.file : null;
+    const busy = running.current && onDisk(running.current.engine) ? running.current.file : null;
     if (busy) dirty.current.delete(busy);
     const names = [...dirty.current].filter(name => latest.current[name]);
     if (!names.length) { if (!dirty.current.size) setSave(s => s === 'error' ? s : 'saved'); return; }
@@ -351,6 +356,42 @@ export function useEditor() {
     return { ...s, objects: [...rest.slice(0, at), ...moving, ...rest.slice(at)] };
   });
   const autoOrder = () => change(s => ({ ...s, objects: depthSort(s.objects) }));
+
+  // Groups: one level, members side by side in the painter order, placed
+  // where the frontmost of them was. Grouping blocks of other groups takes
+  // them out of those.
+  const group = (ids = sel.current) => {
+    const s = cur.current && latest.current[cur.current];
+    if (!s || ids.length < 2) return;
+    const name = uniqueGroup(s, 'group');
+    change(s => {
+      const members = s.objects.filter(p => ids.includes(p.id)).map(p => ({ ...p, group: name }));
+      const front = Math.max(...s.objects.map((p, i) => ids.includes(p.id) ? i : -1));
+      const after = s.objects.slice(front + 1);
+      const before = s.objects.slice(0, front + 1).filter(p => !ids.includes(p.id));
+      return { ...s, objects: [...before, ...members, ...after] };
+    });
+    setSelection(ids);
+    return name;
+  };
+  const ungroup = (ids = sel.current) => {
+    const names = new Set(piecesOf(ids).map(p => p.group).filter(Boolean));
+    if (!names.size) return;
+    change(s => ({ ...s, objects: s.objects.map(p => p.group && names.has(p.group) ? (({ group: _, ...rest }) => rest)(p) : p) }));
+  };
+  const renameGroup = (from: string, to: string) => {
+    const s = cur.current && latest.current[cur.current];
+    if (!s || !to || to === from || s.objects.some(p => p.group === to)) return false;
+    change(s => ({ ...s, objects: s.objects.map(p => p.group === from ? { ...p, group: to } : p) }));
+    return true;
+  };
+  // A selection grown to whole groups: what a click on the canvas picks.
+  const withGroups = (ids: string[]) => {
+    const s = cur.current && latest.current[cur.current];
+    if (!s) return ids;
+    const names = new Set(s.objects.filter(p => ids.includes(p.id) && p.group).map(p => p.group));
+    return s.objects.filter(p => ids.includes(p.id) || (p.group && names.has(p.group))).map(p => p.id);
+  };
   const clearHover = (ids = sel.current) => mapPieces(ids, ({ hover: _, delay: __, ...p }) => p);
 
   // Arranging, on the state shown (rest or hover).
@@ -370,12 +411,12 @@ export function useEditor() {
   const mirror = (axis: 'x' | 'y', ids = sel.current) => { const p = unlocked(ids); if (p.length) replacePieces(ops.mirror(p, axis)); };
   const rotate = (ids = sel.current) => { const p = unlocked(ids); if (p.length) replacePieces(ops.rotate(p)); };
   // A delay wave through the animated blocks (the selection, or all of them).
-  const stagger = (step = .04, ids = sel.current) => {
+  const stagger = (step = .04, ids = sel.current, order: ops.WaveOrder = 'back') => {
     const s = cur.current && latest.current[cur.current];
     if (!s) return;
     const animated = s.objects.filter(p => hoverKind(p) !== 'rest' && !p.hidden && (!ids.length || ids.includes(p.id)));
     if (!animated.length) return;
-    const delays = ops.stagger(animated, step);
+    const delays = ops.stagger(animated, step, order);
     mapPieces([...delays.keys()], p => ({ ...p, delay: delays.get(p.id) || undefined }));
   };
 
@@ -501,11 +542,13 @@ export function useEditor() {
 
   return {
     claude,
+    scrub, setScrub,
     files, templates, loaded, browserOnly, root, nodePath, agent, current, scene, selection, selected, hovered, mode, tool, save, saveError, message,
     external, dismissExternal: () => setExternal(null), renaming, setRenaming,
     alignTo, distribute, mirror, rotate, stagger, repeat, drop, matchSize,
     setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, mapPieces, toggle,
     add, duplicate, remove, copy, cut, copyForAgent, paste, reorder, toEdge, moveBefore, autoOrder, clearHover, rename,
+    group, ungroup, renameGroup, withGroups,
     openFile, createFile, duplicateFile, importFile, renameFile, deleteFile,
     undo: () => step('undo'), redo: () => step('redo'),
   };

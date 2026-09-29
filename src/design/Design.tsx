@@ -18,6 +18,8 @@ import { Button, Chip, Code, CopyBlock, Dot, EmptyState, IconButton, Kbd, Notice
 import { LayersPanel } from '../ui/LayersPanel';
 import { NumberField } from '../ui/NumberField';
 import { ThreadView } from '../ui/Thread';
+import { Engines, Guide } from '../ui/Welcome';
+import { Character, Timeline } from '../ui/Motion';
 import { connection, editor } from './mock';
 
 const scene = validateScene(storage);
@@ -35,7 +37,7 @@ const SECTIONS = [
   ['button', 'Button'], ['icon-button', 'IconButton'], ['segmented', 'Segmented'], ['field', 'TextField'], ['number', 'NumberField'],
   ['small', 'Chip · Kbd · Code · Dot · Spinner'], ['notice', 'Notice'], ['empty', 'EmptyState'], ['copy', 'CopyBlock'],
   ['overlays', 'Menu · Tooltip · Toast · Dialog'],
-  ['file', 'Файл'], ['layers', 'Слои'], ['connect', 'Подключение Claude'], ['thread', 'Разговор с Claude'], ['dock', 'Нижняя панель'],
+  ['file', 'Файл'], ['layers', 'Слои'], ['engines', 'Кто собирает'], ['connect', 'Подключение'], ['guide', 'Как работать с агентом'], ['thread', 'Разговор'], ['dock', 'Нижняя панель'], ['motion-tool', 'Движение'],
   ['canvas', 'Холст'], ['tiles', 'Плитки сцен'], ['system', 'Загрузка и сбой'],
 ] as const;
 
@@ -342,7 +344,18 @@ function Patterns() {
       </div>
     </Section>
 
-    <Section id="connect" title="Подключение Claude" lead="Показывает ровно тот шаг, которого не хватает, и запасной путь ссылкой. Один и тот же компонент в доке и на первом экране.">
+    <Section id="engines" title="Кто собирает" lead="Три пути: Claude Code и Codex работают на компьютере по подписке человека, ключ API — по оплате за использование. У каждой карточки — её состояние.">
+      <div className="ds-stack">
+        <Engines c={c({ local: { available: true, loggedIn: true, version: '2.1.197', codex: { available: false } } })} />
+        <Engines c={c({ engine: 'codex', need: 'login', ready: false, local: { available: true, loggedIn: false, codex: { available: true, loggedIn: false } } })} />
+      </div>
+    </Section>
+
+    <Section id="guide" title="Как работать с агентом" lead="Четыре приёма генерации: на первом экране и по кнопке ? в доке.">
+      <Guide />
+    </Section>
+
+    <Section id="connect" title="Подключение" lead="Показывает ровно тот шаг, которого не хватает, и другие пути ссылками. Один и тот же компонент в доке и на первом экране.">
       <div className="ds-grid">
         <Cell name="нет Claude Code" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'install', ready: false, local: { available: false } })} /></Stage></Cell>
         <Cell name="нужен вход" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'login', ready: false })} /></Stage></Cell>
@@ -350,6 +363,9 @@ function Patterns() {
         <Cell name="ждём код" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'login', ready: false, login: { phase: 'code', url: '#' } })} focus={false} /></Stage></Cell>
         <Cell name="код не подошёл" wide><Stage className="ds-dockish"><Connect connection={c({ need: 'login', ready: false, login: { phase: 'code', url: '#', error: 'Код не подошёл — попробуйте ещё раз' } })} focus={false} /></Stage></Cell>
         <Cell name="ключ API" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'api', need: 'key', ready: false })} /></Stage></Cell>
+        <Cell name="Codex не установлен" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'install', ready: false })} /></Stage></Cell>
+        <Cell name="Codex — вход в ChatGPT" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'login', ready: false })} /></Stage></Cell>
+        <Cell name="Codex — ждём браузер" wide><Stage className="ds-dockish"><Connect connection={c({ engine: 'codex', need: 'login', ready: false, login: { phase: 'waiting', url: '#' } })} /></Stage></Cell>
       </div>
     </Section>
 
@@ -358,6 +374,7 @@ function Patterns() {
         <Cell name="проверяем Claude" wide>{thread({ checking: true })}</Cell>
         <Cell name="пусто — идеи" wide>{thread({})}</Cell>
         <Cell name="работает" wide>{thread({ job: running('Ставит каркас', 14), now: 14000 })}</Cell>
+        <Cell name="долгий старт — объясняем" wide>{thread({ job: { ...running('Думает', 0), steps: [{ kind: 'think', text: 'Думает' }] }, now: 48000 })}</Cell>
         <Cell name="готово" wide>{thread({ job: ended({ result: 'Крышка приподнимается над корпусом при наведении.', changed: true }) })}</Cell>
         <Cell name="остановлено" wide>{thread({ job: ended({ result: 'Остановлено' }) })}</Cell>
         <Cell name="лимит подписки" wide>{thread({ job: ended({ error: { text: 'Лимит подписки Claude закончился — обновится в 2:40', fix: 'api' } }) })}</Cell>
@@ -388,6 +405,15 @@ function Patterns() {
             </div></div>
           </Stage></Cell>
         ))}
+      </div>
+    </Section>
+
+    <Section id="motion-tool" title="Движение" lead="Вкладка «Наведение»: характер движения показан кривой, а не назван; таймлайн — линейка, по которой можно протянуть кадр на холсте, ▶ проигрывает на холсте и в карточке, волна задержек — в пять порядков. Всё в пределах того, что играет сайт: одна кривая на сцену, фиксированная длительность, задержка на блок.">
+      <div className="ds-row">
+        <Stage className="ds-panel-stage"><aside className="panel right surface ds-panel ds-motion-panel">
+          <Character editor={editor({ scene, change: noop })} />
+          <Timeline editor={editor({ scene: layered(s => ({ ...s, objects: s.objects.map((p, i) => i >= 2 && i <= 4 ? { ...p, hover: { d: 40 }, delay: (i - 2) * .08 } : p) })), selection: [], scrub: .32, setScrub: noop })} onPlay={noop} />
+        </aside></Stage>
       </div>
     </Section>
 

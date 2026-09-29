@@ -40,6 +40,7 @@ export function App() {
       const cmd = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
       if (cmd && key === 'z') { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
       if (cmd && key === 'd') { e.preventDefault(); editor.duplicate(); return; }
+      if (cmd && key === 'g') { e.preventDefault(); e.shiftKey ? editor.ungroup() : editor.group(); return; }
       if (cmd && key === 'a') { e.preventDefault(); editor.setSelection(scene?.objects.filter(p => !p.hidden && !p.locked).map(p => p.id) ?? []); return; }
       if (cmd && e.shiftKey && key === 'h') { e.preventDefault(); editor.toggle(selection, 'hidden'); return; }
       if (cmd && e.shiftKey && key === 'l') { e.preventDefault(); editor.toggle(selection, 'locked'); return; }

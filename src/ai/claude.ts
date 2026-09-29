@@ -4,7 +4,7 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { Scene } from '../model';
 import { runWithApi } from './api';
-import { useConnection, type EngineId } from './connection';
+import { onDisk, useConnection, type EngineId } from './connection';
 import { explain, type Problem } from './errors';
 import type { Job, Step } from './job';
 import { agentRuns, runWithClaudeCode, stopClaudeCode, watchClaudeCode } from './local';
@@ -51,7 +51,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
   // Building from scratch: the old scene fades until the first draft lands.
   const [rebuilding, setRebuilding] = useState(false);
 
-  const start = async (prompt: string, { fresh = false, watch = false } = {}) => {
+  const start = async (prompt: string, { fresh = false, watch = false, at = Date.now() } = {}) => {
     if (run.current) return;
     const engine: EngineId = watch ? 'local' : connection.engine;
     const file = ws.current() ?? ws.create();
@@ -59,11 +59,11 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     const selection = fresh ? [] : ws.selection();
     const abort = new AbortController();
     // From then on the file is Claude's until the run ends.
-    if (engine === 'local') await ws.save();
+    if (onDisk(engine)) await ws.save();
     if (run.current) return;
     run.current = { file, engine, abort };
     ws.checkpoint();
-    setJob({ file, prompt, steps: [], running: true, at: Date.now() });
+    setJob({ file, prompt, steps: [], running: true, at });
     setRebuilding(fresh && scene.objects.length > 0);
 
     const progress = (step: Step) => setJob(j => j && (j.steps.at(-1)?.text === step.text ? j : { ...j, steps: [...j.steps.slice(-5), step] }));
@@ -80,16 +80,16 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     const job: Job = {
       prompt, file, selection, signal: abort.signal, progress, draft,
       // From scratch Claude starts from nothing.
-      scene: fresh ? { ...scene, objects: [] } : scene,
+      scene: fresh ? { ...scene, objects: [] } : scene, agent: engine === 'codex' ? 'codex' : 'claude', model: connection.model,
       session: talk.session, onSession: id => talks.setSession(file, talk.id, id),
     };
     let outcome: { result?: string; error?: Problem };
     try {
-      const result = watch ? await watchClaudeCode(job) : engine === 'local' ? await runWithClaudeCode(job) : await runWithApi(job, connection.key);
+      const result = watch ? await watchClaudeCode(job) : onDisk(engine) ? await runWithClaudeCode(job) : await runWithApi(job, connection.key);
       outcome = { result };
     } catch (error) {
       const message = (error as Error).message;
-      outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message) };
+      outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message, engine === 'codex' ? 'ChatGPT' : 'Claude') };
       // A session Claude Code no longer knows starts over next time.
       if (/session|сесси/i.test(message)) talks.setSession(file, talk.id, undefined);
     }
@@ -110,7 +110,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
   const stop = () => {
     const current = run.current;
     if (!current) return;
-    if (current.engine === 'local') stopClaudeCode(current.file);
+    if (onDisk(current.engine)) stopClaudeCode(current.file);
     current.abort.abort();
   };
 
@@ -119,7 +119,8 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     if (!ws.loaded || !ws.file || ws.browserOnly || run.current) return;
     agentRuns().then(list => {
       const going = list.find(r => r.file === ws.file);
-      if (going && !run.current && ws.current() === going.file) start(going.prompt, { watch: true });
+      // The timer goes on from when the run started, not from the reload.
+      if (going && !run.current && ws.current() === going.file) start(going.prompt, { watch: true, at: going.at });
     });
   }, [ws.loaded, ws.file]);
 
@@ -132,6 +133,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     dismiss: () => setJob(null),
     newConversation: () => leave(() => talks.fresh(ws.file!)),
     openConversation: (id: string) => leave(() => talks.open(ws.file!, id)),
+    deleteConversation: (id: string) => leave(() => talks.remove(ws.file!, id)),
   };
 }
 export type Claude = ReturnType<typeof useClaude>;
