@@ -109,13 +109,3 @@ export function AgentsDialog({ editor, onClose }: { editor: Editor; onClose: () 
     </Dialog>
   );
 }
-
-// A quiet chip on the canvas while an agent works through MCP.
-export function AgentActivity({ editor }: { editor: Editor }) {
-  const [, tick] = useState(0);
-  const a = editor.agent;
-  useEffect(() => { if (!a) return; const t = setTimeout(() => tick(n => n + 1), 4200); return () => clearTimeout(t); }, [a]);
-  if (!a || Date.now() - a.at > 4000) return null;
-  const verb = { write_scene: 'пишет', update_blocks: 'правит', render_preview: 'смотрит превью' }[a.tool] ?? a.tool;
-  return <div className="agent-activity"><i />Агент {verb}{a.file ? ` · ${a.file}` : ''}</div>;
-}

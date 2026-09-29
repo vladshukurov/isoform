@@ -2,24 +2,22 @@ import { useRef, useState } from 'react';
 import {
   AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround,
-  ArrowDownToLine, CopyPlus, Hash, MoveHorizontal, Download, FlipHorizontal2, FlipVertical2, Proportions, RotateCcw, RotateCw, Timer,
+  ArrowDownToLine, ArrowRight, CopyPlus, Hash, MoveHorizontal, FlipHorizontal2, FlipVertical2, Proportions, RotateCcw, RotateCw, Timer,
 } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
-import { downloadJson, downloadPng, downloadSvg } from '../download';
 import type { Editor } from '../editor';
-import { hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
+import { BOX_KEYS, hoverBox, hoverKind, pick, PLATE, type Box, type BoxKey, type Piece } from '../model';
 import { NumberField } from './NumberField';
 import { Timeline } from './Timeline';
 
-const ROWS: { title: string; keys: [BoxKey, string][] }[] = [
-  { title: 'Положение', keys: [['x', 'X'], ['y', 'Y'], ['z', 'Z']] },
-  { title: 'Размер', keys: [['w', 'Ш'], ['d', 'Г'], ['h', 'В']] },
-];
-const TIP: Record<BoxKey, string> = { x: 'X', y: 'Y', z: 'Высота над полом', w: 'Ширина', d: 'Глубина', h: 'Высота' };
+const FIELDS: [BoxKey, string][] = [['x', 'X'], ['y', 'Y'], ['z', 'Z'], ['w', 'W'], ['d', 'D'], ['h', 'H']];
+const TIP: Record<BoxKey, string> = { x: 'X — тяните, чтобы менять', y: 'Y — тяните, чтобы менять', z: 'Высота над полом', w: 'Ширина', d: 'Глубина', h: 'Высота' };
+const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
+const fmt = (v: number) => String(+v.toFixed(2));
 
 // Figma's right panel: the design of the rest state, and a second tab for
 // what changes on hover.
-export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dark: boolean; resizer?: React.ReactNode }) {
+export function PropertiesPanel({ editor }: { editor: Editor }) {
   const { scene, selected, mode, current } = editor;
   const [pinned, setPinned] = useState(false);
   const [repeating, setRepeating] = useState(false);
@@ -27,7 +25,7 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
   const [playing, setPlaying] = useState<number | null>(null);
   const playTimer = useRef(0);
   const titleEdit = useRef(false);
-  if (!scene || !current) return <aside className="panel right">{resizer}</aside>;
+  if (!scene || !current) return null;
   const hover = mode === 'hover';
   const boxOf = (p: Piece): Box => hover ? hoverBox(p) : pick(p);
   const common = (read: (p: Piece) => number | undefined) => {
@@ -43,9 +41,9 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
   };
 
   return (
-    <aside className="panel right">
-      {resizer}
-      <div className="tabs" role="tablist">
+    <aside className="panel right surface">
+      <div className={`tabs${hover ? ' is-second' : ''}`} role="tablist">
+        <i className="tabs-pill" />
         <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')} data-tip="Дизайн" data-kbd="1">Дизайн</button>
         <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')} data-tip="Состояние при наведении" data-kbd="2">
           Наведение{scene.objects.some(p => hoverKind(p) !== 'rest') && <i className="tab-dot" />}
@@ -91,10 +89,31 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
         </section>
       )}
 
+      {selected.length > 0 && (
+        <section className="block-head">
+          <div className="block-name">
+            <h3>{selected.length === 1 ? selected[0].id : `${selected.length} ${plural(selected.length)}`}</h3>
+            <span>{describe(selected)}</span>
+          </div>
+          {hover && selected.length === 1 && diff(selected[0]).map(([k, from, to]) => (
+            <div key={k} className="diff"><b>{k.toUpperCase()}</b><s>{fmt(from)}</s><ArrowRight size={14} /><em>{fmt(to)}</em><span>{to > from ? '+' : '−'}{fmt(Math.abs(to - from))}</span></div>
+          ))}
+          <div className="fields">
+            {FIELDS.map(([k, label]) => (
+              <NumberField key={k} label={label} tip={TIP[k]} value={common(p => boxOf(p)[k])}
+                min={'wdh'.includes(k) ? .5 : undefined}
+                accent={hover && selected.some(p => p.hover?.[k] !== undefined && p.hover[k] !== p[k])}
+                onCommit={v => editor.updatePieces(ids, () => ({ [k]: v }))}
+                onScrubStart={editor.checkpoint}
+                onScrub={v => editor.updatePieces(ids, () => ({ [k]: v }), false)} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {!hover && selected.length > 0 && (
-        <section>
-          <h3>Трансформация</h3>
-          <div className="row tools-row">
+        <section className="transform">
+          <div className="tool-row">
               <button className="icon" aria-label="На опору" data-tip="На опору" data-kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></button>
               <button className="icon" aria-label="Повторить" data-tip="Повторить" aria-pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></button>
               <button className="icon" aria-label="Отразить по X" data-tip="Отразить по X" data-kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></button>
@@ -116,32 +135,20 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
         </section>
       )}
 
-      {selected.length > 0 && ROWS.map(row => (
-        <section key={row.title}>
-          <h3>{row.title}</h3>
-          <div className="fields">
-            {row.keys.map(([k, label]) => (
-              <NumberField key={k} label={label} tip={TIP[k]} value={common(p => boxOf(p)[k])}
-                min={'wdh'.includes(k) ? .5 : undefined}
-                accent={hover && selected.some(p => p.hover?.[k] !== undefined && p.hover[k] !== p[k])}
-                onCommit={v => editor.updatePieces(ids, () => ({ [k]: v }))}
-                onScrubStart={editor.checkpoint}
-                onScrub={v => editor.updatePieces(ids, () => ({ [k]: v }), false)} />
-            ))}
-          </div>
-        </section>
-      ))}
-
       {hover && selected.length > 0 && (
         <section>
-          <h3>Задержка, с</h3>
-          <div className="fields">
+          <div className="section-head">
+            <h3>Задержка</h3>
+            <button className="icon" aria-label="Убрать наведение" data-tip="Убрать наведение" disabled={!selected.some(p => p.hover)}
+              onClick={() => editor.clearHover(ids)}><RotateCcw size={14} /></button>
+          </div>
+          <div className="delay">
+            <input type="range" className="slider" min={0} max={1} step={.02} value={common(p => p.delay ?? 0) ?? 0}
+              style={{ '--v': `${(common(p => p.delay ?? 0) ?? 0) * 100}%` } as React.CSSProperties}
+              onPointerDown={editor.checkpoint}
+              onChange={e => setDelay(+e.target.value, false)} />
             <NumberField label={<Timer size={12} />} tip="Секунды до начала движения" value={common(p => p.delay ?? 0)} step={.02} min={0}
               onCommit={v => setDelay(v)} onScrubStart={editor.checkpoint} onScrub={v => setDelay(v, false)} />
-            <button className="icon" aria-label="Убрать наведение" data-tip="Убрать наведение" disabled={!selected.some(p => p.hover)}
-              onClick={() => editor.clearHover(ids)}>
-              <RotateCcw size={13} />
-            </button>
           </div>
         </section>
       )}
@@ -162,16 +169,21 @@ export function PropertiesPanel({ editor, dark, resizer }: { editor: Editor; dar
         </section>
       )}
 
-      {!hover && (
-        <section className="export">
-          <h3>Экспорт</h3>
-          <div className="fields">
-            <button onClick={() => downloadSvg(current, scene)} data-tip="Разметка для сайта"><Download size={13} /> SVG</button>
-            <button onClick={() => downloadPng(current, scene, dark ? 'dark' : 'light')} data-tip={`Картинка 2×, ${dark ? 'тёмная' : 'светлая'} тема`}><Download size={13} /> PNG</button>
-            <button onClick={() => downloadJson(current, scene)} data-tip="Исходник сцены — можно открыть снова"><Download size={13} /> JSON</button>
-          </div>
-        </section>
-      )}
     </aside>
   );
 }
+
+// What a block is, in a word or two, for the panel's heading.
+function describe(pieces: Piece[]) {
+  if (pieces.length > 1) {
+    const moving = pieces.filter(p => hoverKind(p) !== 'rest').length;
+    return moving ? `${moving} с наведением` : 'Без наведения';
+  }
+  const p = pieces[0], kind = hoverKind(p);
+  const what = p.h <= PLATE + 4 ? 'Плита' : 'Блок';
+  if (p.locked) return `${what} · заблокирован`;
+  return kind === 'move' ? `${what} · едет при наведении` : kind === 'morph' ? `${what} · меняет форму при наведении` : what;
+}
+
+// The values hover changes, rest → hover.
+const diff = (p: Piece) => BOX_KEYS.filter(k => p.hover?.[k] !== undefined && p.hover[k] !== p[k]).map(k => [k, p[k], p.hover![k]!] as const);

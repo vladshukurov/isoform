@@ -1,25 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownUp, FileUp, X } from 'lucide-react';
+import { ArrowDownUp, FileUp, Redo2, Undo2, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
 import { Canvas } from './ui/Canvas';
-import { AgentActivity, AgentsCard, AgentsDialog } from './ui/Agents';
+import { AgentsCard, AgentsDialog } from './ui/Agents';
 import { ConfirmDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
-import { FileHeader } from './ui/FileHeader';
-import { Generate } from './ui/Generate';
+import { Dock } from './ui/Dock';
+import { FileHeader, TopActions } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
-import { PanelResizer } from './ui/PanelResizer';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Tooltip } from './ui/Tooltip';
 
 type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | 'delete' | null;
 const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select');
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
-const readWidths = () => {
-  try { const v = JSON.parse(localStorage.getItem('isoform-panels') ?? ''); if (Number.isFinite(v?.left) && Number.isFinite(v?.right)) return v as { left: number; right: number }; } catch { /* first run */ }
-  return { left: 240, right: 240 };
-};
 const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
 
 export function App() {
@@ -27,8 +22,6 @@ export function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dark, setDark] = useState(readTheme);
   const [chrome, setChrome] = useState(true);
-  const [widths, setWidths] = useState(readWidths);
-  useEffect(() => { try { localStorage.setItem('isoform-panels', JSON.stringify(widths)); } catch { /* private mode */ } }, [widths]);
   const [dropping, setDropping] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const pendingPaste = useRef(0);
@@ -137,26 +130,41 @@ export function App() {
   // With no files yet the app opens on the new-file picker.
   const empty = editor.loaded && !editor.current;
 
+  const count = scene?.objects.length ?? 0;
   return (
-    <div className={`app${chrome ? '' : ' is-bare'}`} style={chrome ? { gridTemplateColumns: `${widths.left}px 1fr ${widths.right}px` } : undefined}
+    <div className={`app${chrome ? '' : ' is-bare'}`}
       onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } }}
       onDragLeave={e => { if (e.currentTarget === e.target || !e.relatedTarget) setDropping(false); }}
       onDrop={e => { if (e.dataTransfer.files.length) { e.preventDefault(); setDropping(false); open(e.dataTransfer.files); } }}>
-      <aside className="panel left">
+      <main className="stage">
+        <Canvas editor={editor} />
+      </main>
+
+      {/* Everything else floats over the canvas. */}
+      <div className="chrome">
         <FileHeader editor={editor} dark={dark} onDark={() => setDark(d => !d)}
           onNew={() => setDialog('new')} onSeries={() => setDialog('series')} onAgent={() => setDialog('agent')}
           onShortcuts={() => setDialog('shortcuts')} onImport={() => picker.current?.click()} onDelete={() => setDialog('delete')} />
-        {scene && <div className="panel-title">
-          <h3>Слои</h3>
-          <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={13} /></button>
-        </div>}
-        <LayersPanel editor={editor} />
-        <AgentsCard editor={editor} onSetup={() => setDialog('agent')} />
-        <PanelResizer side="left" width={widths.left} onWidth={left => setWidths(w => ({ ...w, left }))} />
-      </aside>
+        <TopActions editor={editor} dark={dark} onDark={() => setDark(d => !d)} onAgent={() => setDialog('agent')} />
 
-      <main className="stage">
-        <Canvas editor={editor} />
+        {scene && <aside className="panel left surface">
+          <div className="panel-title">
+            <h3>Слои</h3>
+            <span className="panel-count">{String(count).padStart(2, '0')}</span>
+            <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={14} /></button>
+          </div>
+          <LayersPanel editor={editor} />
+          <AgentsCard editor={editor} onSetup={() => setDialog('agent')} />
+        </aside>}
+
+        <PropertiesPanel editor={editor} />
+
+        {scene && <div className="history surface">
+          <button className="icon" aria-label="Отменить" data-tip="Отменить" data-kbd="⌘Z" onClick={editor.undo}><Undo2 size={17} /></button>
+          <button className="icon" aria-label="Вернуть" data-tip="Вернуть" data-kbd="⇧⌘Z" onClick={editor.redo}><Redo2 size={17} /></button>
+        </div>}
+        {scene && <Dock editor={editor} />}
+
         {editor.message && <div className="toast" role="status" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
         {external && <div className="toast toast-action" role="status">
           {external.created
@@ -166,13 +174,8 @@ export function App() {
                 <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button></>}
           <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
         </div>}
-        <AgentActivity editor={editor} />
-        {editor.aiOpen && <Generate editor={editor} onClose={() => editor.setAiOpen(false)} />}
-        {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
-      </main>
-
-      <PropertiesPanel editor={editor} dark={dark}
-        resizer={<PanelResizer side="right" width={widths.right} onWidth={right => setWidths(w => ({ ...w, right }))} />} />
+      </div>
+      {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
 
       <input ref={picker} type="file" accept=".json,application/json" multiple hidden
         onChange={e => { open(e.target.files); e.target.value = ''; }} />

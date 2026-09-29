@@ -99,10 +99,11 @@ try {
   log('4. draw a block with B');
   await page.keyboard.press('Escape');
   await page.keyboard.press('b');
-  await page.locator('.toolbar button[aria-pressed="true"][aria-label^="Блок"]').waitFor();
+  await page.locator('.dock-tool[aria-pressed="true"][aria-label^="Блок"]').waitFor();
   const box = await canvasSvg.boundingBox();
-  const from = { x: box.x + 120, y: box.y + 120 };
-  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-object], button, .toolbar, .zoom') ? 'busy' : 'free', from);
+  // Clear canvas between the scene and the right panel, under the top bar.
+  const from = { x: box.x + box.width - 480, y: box.y + 110 };
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-object], button, .surface, .dock') ? 'busy' : 'free', from);
   assert.equal(hit, 'free', 'the start point of the drag is empty canvas');
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();

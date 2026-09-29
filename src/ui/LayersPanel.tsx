@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, MoveUpRight, Scaling, TriangleAlert } from 'lucide-react';
+import { Box, Eye, EyeOff, Layers2, Lock, LockOpen, TriangleAlert } from 'lucide-react';
+import { ENTER } from '../anim';
 import type { Editor } from '../editor';
 import { hoverKind, PLATE, type Piece } from '../model';
 import { overlaps } from '../review';
@@ -19,6 +20,8 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   const flags = useMemo(() => scene ? overlaps(scene) : new Map<string, Set<string>>(), [scene]);
   if (!scene) return <div className="layers" />;
   const list = [...scene.objects].reverse();
+  // Each animated row carries its bit of the timeline: when it starts, how long it runs.
+  const total = Math.max(1.2, Math.max(0, ...scene.objects.filter(p => hoverKind(p) !== 'rest').map(p => p.delay ?? 0)) + ENTER);
 
   const click = (p: Piece, e: React.MouseEvent) => {
     if (e.shiftKey && anchor.current) {
@@ -87,8 +90,8 @@ export function LayersPanel({ editor }: { editor: Editor }) {
               : <span className="layer-name">{p.id}</span>}
             <span className="layer-status">
               {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={14} /></span>}
-              {kind !== 'rest' && <span className="layer-motion" data-tip={kind === 'move' ? 'Едет при наведении' : 'Меняет форму при наведении'}>
-                {kind === 'move' ? <MoveUpRight size={14} /> : <Scaling size={14} />}
+              {kind !== 'rest' && <span className="layer-track" data-tip={`${kind === 'move' ? 'Едет' : 'Меняет форму'} при наведении · ${(p.delay ?? 0).toFixed(2)} с`}>
+                <i style={{ left: `${(p.delay ?? 0) / total * 100}%`, width: `${ENTER / total * 100}%` }} />
               </span>}
             </span>
             <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}

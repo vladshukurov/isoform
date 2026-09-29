@@ -1,12 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Box as BoxIcon } from 'lucide-react';
+import { Box as BoxIcon, Minus, Plus } from 'lucide-react';
 import { Art } from '../Art';
 import type { Editor } from '../editor';
 import { AXIS, outline, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
 import { GAP, GROUND, hoverBox, hoverKind, pick, PLATE, SNAP, type Box } from '../model';
 import { bounds, snapMove, snapPoint, snapSize, type Guide } from '../snap';
 import { pieceMenu } from './actions';
-import { Toolbar } from './Toolbar';
 import { Menu, type MenuItem } from './Menu';
 
 type View = { s: number; ox: number; oy: number };
@@ -27,6 +26,11 @@ const fmt = (v: number) => String(+v.toFixed(2));
 // Smart guides pull within this many screen pixels; hold ⌘ to place freely.
 const PULL = 6;
 const dialogOpen = () => !!document.querySelector('.backdrop');
+// The canvas under the floating chrome: panels at the sides, the dock below.
+const safeArea = ({ w, h }: { w: number; h: number }) => {
+  const l = w > 1000 ? 280 : w > 760 ? 240 : 16, r = w > 1000 ? 312 : w > 760 ? 272 : 16, t = 72, b = 104;
+  return { x: l, y: t, w: Math.max(100, w - l - r), h: Math.max(100, h - t - b) };
+};
 
 // The working view: the scene in rest or hover state on a floor grid, with
 // Figma-style navigation (scroll pans, ⌘/pinch zooms, Space drags) and
@@ -64,11 +68,12 @@ export function Canvas({ editor }: { editor: Editor }) {
     const points = all.length ? all.flatMap(b => vertices(b).map(project)) : [{ x: -260, y: -260 }, { x: 260, y: 200 }];
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
     const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-    // The whole scene sits comfortably in the middle, about half the canvas,
-    // centred above the tool bar; showing a selection fits it tighter.
-    const room = only?.length ? .8 : .5, bar = 64, avail = size.h - bar;
-    const s = Math.max(.1, Math.min(size.w * room / Math.max(w, 1), avail * room / Math.max(h, 1), only?.length ? 4 : 1.5));
-    setView({ s, ox: size.w / 2 - s * (Math.min(...xs) + w / 2), oy: avail / 2 - s * (Math.min(...ys) + h / 2) });
+    // The whole scene sits comfortably in the free middle between the
+    // floating panels, about half of it; showing a selection fits tighter.
+    const room = only?.length ? .8 : .5, area = safeArea(size);
+    // On narrow windows the scene may reach under the panels rather than shrink to a dot.
+    const s = Math.max(.1, Math.min(Math.max(area.w, size.w * .6) * room / Math.max(w, 1), area.h * room / Math.max(h, 1), only?.length ? 4 : 1.5));
+    setView({ s, ox: area.x + area.w / 2 - s * (Math.min(...xs) + w / 2), oy: area.y + area.h / 2 - s * (Math.min(...ys) + h / 2) });
   };
   const zoomAt = (factor: number, mx = size.w / 2, my = size.h / 2) => setView(v => {
     if (!v) return v;
@@ -314,6 +319,11 @@ export function Canvas({ editor }: { editor: Editor }) {
       onPointerDown={backgroundDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
       onContextMenu={contextMenu}>
       <svg width={size.w} height={size.h} className={`iso-art workspace${mode === 'hover' ? ' is-active' : ''}${panning || tool !== 'move' ? ' is-tool' : ''}`}>
+        <defs>
+          <linearGradient id="agent-ink" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#FF8A4C" /><stop offset=".5" stopColor="#FF4FA3" /><stop offset="1" stopColor="#8E6BFF" />
+          </linearGradient>
+        </defs>
         <g transform={`translate(${view.ox} ${view.oy}) scale(${view.s})`}>
           <path className="grid" d={grid.join(' ')} />
           {[...selected.map(boxOf), ...(draft ? [draft] : [])].map((b, i) => {
@@ -354,11 +364,49 @@ export function Canvas({ editor }: { editor: Editor }) {
           x={Math.min(drag.x, drag.to.x)} y={Math.min(drag.y, drag.to.y)}
           width={Math.abs(drag.to.x - drag.x)} height={Math.abs(drag.to.y - drag.y)} />}
       </svg>
-      {mode === 'hover' && <div className="mode-chip">Наведение</div>}
+      {mode === 'hover' && <div className="mode-chip"><i />Состояние при наведении</div>}
       {mode !== 'hover' && (tool === 'block' || tool === 'plate') && !drag && <div className="mode-chip is-quiet">Тяните по полу или по верху блока</div>}
       {!objects.length && tool === 'move' && <div className="canvas-empty"><BoxIcon size={20} /><span>Нарисуйте блок</span><kbd>B</kbd></div>}
-      <Toolbar editor={editor} zoom={<button className="zoom" onClick={() => fitView()} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>} />
+      <Navigator view={view} size={size} boxes={boxes} onView={setView} onFit={() => fitView()} onZoom={f => zoomAt(f)} />
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+// Bottom right: the whole scene in miniature with the visible part framed
+// (drag it to pan), and the zoom with a fit on click.
+function Navigator({ view, size, boxes, onView, onFit, onZoom }: {
+  view: View; size: { w: number; h: number }; boxes: Box[];
+  onView: (v: View) => void; onFit: () => void; onZoom: (factor: number) => void;
+}) {
+  const W = 176, H = 92, pad = 8;
+  const pts = boxes.flatMap(b => vertices(b).map(project));
+  const port = { x0: -view.ox / view.s, y0: -view.oy / view.s, x1: (size.w - view.ox) / view.s, y1: (size.h - view.oy) / view.s };
+  const xs = [...pts.map(p => p.x), port.x0, port.x1], ys = [...pts.map(p => p.y), port.y0, port.y1];
+  const b = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+  const k = Math.min((W - pad * 2) / (b.x1 - b.x0 || 1), (H - pad * 2) / (b.y1 - b.y0 || 1));
+  const ox = W / 2 - k * (b.x0 + b.x1) / 2, oy = H / 2 - k * (b.y0 + b.y1) / 2;
+  // Centre the view on the minimap point under the pointer.
+  const pan = (e: PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const wx = (e.clientX - r.left - ox) / k, wy = (e.clientY - r.top - oy) / k;
+    onView({ ...view, ox: size.w / 2 - wx * view.s, oy: size.h / 2 - wy * view.s });
+  };
+  return (
+    <div className="navigator surface" onPointerDown={e => e.stopPropagation()} onContextMenu={e => e.stopPropagation()}>
+      <svg className="minimap" width={W} height={H}
+        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); pan(e); }}
+        onPointerMove={e => { if (e.buttons & 1) pan(e); }}>
+        <g transform={`translate(${ox} ${oy}) scale(${k})`}>
+          {boxes.map((box, i) => <path key={i} d={outline(box)} />)}
+        </g>
+        <rect className="minimap-port" x={ox + port.x0 * k} y={oy + port.y0 * k} width={(port.x1 - port.x0) * k} height={(port.y1 - port.y0) * k} rx="4" />
+      </svg>
+      <div className="zoom-row">
+        <button className="icon" aria-label="Отдалить" data-tip="Отдалить" data-kbd="⌘−" onClick={() => onZoom(.8)}><Minus size={14} /></button>
+        <button className="zoom" onClick={onFit} data-tip="Вписать" data-kbd="⇧1">{Math.round(view.s * 100)}%</button>
+        <button className="icon" aria-label="Приблизить" data-tip="Приблизить" data-kbd="⌘+" onClick={() => onZoom(1.25)}><Plus size={14} /></button>
+      </div>
     </div>
   );
 }
