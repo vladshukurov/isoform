@@ -1,0 +1,35 @@
+/* The artwork: faces and edges in the site's colours, turning blue on hover. */
+@property --iso-line { syntax: '<color>'; inherits: true; initial-value: #8e959f; }
+@property --iso-edge { syntax: '<color>'; inherits: true; initial-value: #b9bec6; }
+@property --iso-top { syntax: '<color>'; inherits: true; initial-value: #fafafb; }
+@property --iso-left { syntax: '<color>'; inherits: true; initial-value: #fafafb; }
+@property --iso-right { syntax: '<color>'; inherits: true; initial-value: #eceef1; }
+
+.iso-art {
+  --iso-line: var(--stroke-strong); --iso-edge: var(--stroke);
+  --iso-top: var(--page); --iso-left: var(--page); --iso-right: var(--page-shade);
+  transition: --iso-line .28s, --iso-edge .28s, --iso-top .28s, --iso-left .28s, --iso-right .28s;
+  transition-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+.iso-art.is-active {
+  --iso-line: var(--hover-line); --iso-edge: var(--hover-edge);
+  --iso-top: var(--hover-top); --iso-left: var(--hover-left); --iso-right: var(--hover-right);
+}
+.iso-art path { stroke: var(--iso-edge); stroke-width: .75; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.iso-art path[data-edge="outline"] { fill: none; stroke: var(--iso-line); stroke-width: 1.1; }
+.iso-art path[data-face="top"] { fill: var(--iso-top); }
+.iso-art path[data-face="left"] { fill: var(--iso-left); }
+.iso-art path[data-face="right"] { fill: var(--iso-right); }
+/* A card of the site: the scene on the page colour. */
+.card { display: block; width: 100%; aspect-ratio: 1.45; max-height: 30vh; background: var(--page); border-radius: var(--r-4); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .2s; }
+
+/* The mark (logo) and the layer glyphs: tiny iso boxes. */
+.logo { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: var(--r-3); background: var(--ink); }
+.mark path { stroke: var(--ink); stroke-width: .7; stroke-linejoin: round; }
+.mark path[data-face="top"] { fill: #ffffff; } .mark path[data-face="left"] { fill: #d9dade; } .mark path[data-face="right"] { fill: #a9adb5; }
+.mark path[data-edge="outline"] { fill: none; stroke: none; }
+:root[data-theme="dark"] .mark path { stroke: #000; }
+.glyph path { stroke: var(--faint); stroke-width: .45; stroke-linejoin: round; vector-effect: none; }
+.glyph path[data-face="top"] { fill: var(--surface-solid); } .glyph path[data-face="left"] { fill: var(--surface-solid); } .glyph path[data-face="right"] { fill: var(--field-hover); }
+.glyph path[data-edge="outline"] { fill: none; stroke: var(--muted); stroke-width: .7; }
+.claude-mark { color: var(--claude); flex: none; }

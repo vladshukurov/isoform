@@ -99,7 +99,7 @@ try {
   log('4. draw a block with B');
   await page.keyboard.press('Escape');
   await page.keyboard.press('b');
-  await page.locator('.dock-tool[aria-pressed="true"][aria-label^="Блок"]').waitFor();
+  await page.locator('[aria-label="Инструмент"] [aria-checked="true"][aria-label^="Блок"]').waitFor();
   const box = await canvasSvg.boundingBox();
   // Clear canvas between the scene and the right panel, under the top bar.
   const from = { x: box.x + box.width - 480, y: box.y + 110 };
@@ -123,7 +123,7 @@ try {
     await target.click({ button: 'right' });
     const menu = page.locator('.menu');
     await menu.waitFor();
-    await menu.getByRole('button', { name: /Дублировать/ }).click();
+    await menu.getByRole('menuitem', { name: /Дублировать/ }).click();
     return menu.waitFor({ state: 'detached', timeout: 1500 }).then(() => true, () => false);
   };
   // The canvas menu once swallowed its own clicks (pointer capture by the canvas).
@@ -138,10 +138,10 @@ try {
 
   // 6. The hover tab shows the timeline for the animated drawer.
   log('6. Наведение tab has a timeline');
-  await page.locator('.tabs button', { hasText: 'Наведение' }).click();
+  await page.getByRole('radio', { name: 'Наведение' }).click();
   await page.locator('.timeline').waitFor();
   assert.deepEqual(await page.locator('.timeline .timeline-name').allTextContents(), ['drawer-2']);
-  await page.locator('.tabs button', { hasText: 'Дизайн' }).click();
+  await page.getByRole('radio', { name: 'Дизайн' }).click();
   await page.locator('.timeline').waitFor({ state: 'detached' });
 
   // 7. A change written to disk from outside reaches the open page.
@@ -162,6 +162,13 @@ try {
   // 8. Nothing went wrong in the console.
   log('8. no console errors');
   assert.deepEqual(errors, [], 'console errors');
+
+  // 9. The design system page renders every section without errors.
+  log('9. /design.html renders');
+  await page.goto(page.url().replace(/\/(\?.*)?$/, '/design.html'));
+  await page.locator('#system').waitFor();
+  assert.ok(await page.locator('.ds-section').count() >= 20, 'design sections');
+  assert.deepEqual(errors, [], 'console errors on /design.html');
   if (known.length) console.warn(`\nKNOWN FAILURES (app bugs, not fixed here):\n  ${known.join('\n  ')}\n`);
   log(`PASS in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 } catch (error) {

@@ -7,6 +7,7 @@ import {
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import { BOX_KEYS, hoverBox, hoverKind, pick, type Box, type BoxKey, type Piece } from '../model';
+import { Button, IconButton, Segmented, TextField } from './kit';
 import { NumberField } from './NumberField';
 import { Timeline } from './Timeline';
 
@@ -42,25 +43,16 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
 
   return (
     <aside className="panel right surface">
-      <div className={`tabs${hover ? ' is-second' : ''}`} role="tablist">
-        <i className="tabs-pill" />
-        <button role="tab" aria-pressed={!hover} onClick={() => editor.setMode('rest')}>Дизайн</button>
-        <button role="tab" aria-pressed={hover} onClick={() => editor.setMode('hover')}>
-          Наведение
-        </button>
-      </div>
+      <Segmented label="Состояние" wide value={mode} onChange={editor.setMode}
+        options={[{ value: 'rest', label: 'Дизайн', kbd: '1' }, { value: 'hover', label: 'Наведение', kbd: '2' }]} />
       {scene.objects.length > 0 && <div className={`preview${pinned ? ' is-pinned' : ''}`} onClick={() => setPinned(p => !p)}>
         <CardPreview scene={scene} hold={pinned || playing !== null} />
       </div>}
 
       {hover && (
         <section>
-          <div className="segmented wide">
-            <button aria-pressed={scene.motion === 'mechanical'}
-              onClick={() => scene.motion !== 'mechanical' && editor.change(s => ({ ...s, motion: 'mechanical' }))}>Механизм</button>
-            <button aria-pressed={scene.motion === 'layered'}
-              onClick={() => scene.motion !== 'layered' && editor.change(s => ({ ...s, motion: 'layered' }))}>Раскрытие</button>
-          </div>
+          <Segmented label="Характер движения" wide value={scene.motion} onChange={motion => editor.change(s => ({ ...s, motion }))}
+            options={[{ value: 'mechanical', label: 'Механизм', tip: 'Детали ездят как настоящие механизмы' }, { value: 'layered', label: 'Раскрытие', tip: 'Схема раскрывается слоями' }]} />
         </section>
       )}
 
@@ -68,7 +60,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         <section>
           <div className="section-head">
             <h3>Выравнивание</h3>
-            <button className="icon" aria-label="Размер как у последнего" data-tip={`Размер как у ${ids.at(-1)}`} onClick={() => editor.matchSize()}><Proportions size={14} /></button>
+            <IconButton label="Размер как у последнего" tip={`Размер как у ${ids.at(-1)}`} onClick={() => editor.matchSize()}><Proportions size={14} /></IconButton>
           </div>
           <div className="align-grid">
             {(['x', 'y', 'z'] as const).map(axis => (
@@ -77,11 +69,11 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
                 {(axis === 'z'
                   ? [['min', AlignVerticalJustifyEnd, 'вниз'], ['center', AlignVerticalJustifyCenter, 'по центру'], ['max', AlignVerticalJustifyStart, 'вверх']] as const
                   : [['min', AlignHorizontalJustifyStart, 'к началу'], ['center', AlignHorizontalJustifyCenter, 'по центру'], ['max', AlignHorizontalJustifyEnd, 'к концу']] as const).map(([edge, Icon, tip]) => (
-                  <button key={edge} className="icon" aria-label={`${axis.toUpperCase()} ${tip}`} data-tip={`${axis === 'z' ? 'По высоте' : axis.toUpperCase()} ${tip}`}
-                    onClick={() => editor.alignTo(axis, edge)}><Icon size={14} /></button>
+                  <IconButton key={edge} label={`${axis === 'z' ? 'По высоте' : axis.toUpperCase()} ${tip}`}
+                    onClick={() => editor.alignTo(axis, edge)}><Icon size={14} /></IconButton>
                 ))}
-                <button className="icon" aria-label={`Распределить по ${axis.toUpperCase()}`} data-tip={`Равные промежутки по ${axis === 'z' ? 'высоте' : axis.toUpperCase()}`}
-                  disabled={selected.length < 3} onClick={() => editor.distribute(axis)}>{axis === 'z' ? <AlignVerticalSpaceAround size={14} /> : <AlignHorizontalSpaceAround size={14} />}</button>
+                <IconButton label={`Равные промежутки по ${axis === 'z' ? 'высоте' : axis.toUpperCase()}${selected.length < 3 ? ' — нужно от трёх блоков' : ''}`}
+                  disabled={selected.length < 3} onClick={() => editor.distribute(axis)}>{axis === 'z' ? <AlignVerticalSpaceAround size={14} /> : <AlignHorizontalSpaceAround size={14} />}</IconButton>
               </div>
             ))}
           </div>
@@ -94,7 +86,7 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
             <h3>{selected.length === 1 ? selected[0].id : `${selected.length} ${plural(selected.length)}`}</h3>
           </div>
           {allLocked && <div className="locked-note"><Lock size={13} /><span>{selected.length === 1 ? 'Заблокирован' : 'Заблокированы'}</span>
-            <button className="chip-button" onClick={() => editor.toggle(ids, 'locked')}>Разблокировать</button></div>}
+            <Button size="sm" onClick={() => editor.toggle(ids, 'locked')}>Разблокировать</Button></div>}
           {hover && selected.length === 1 && diff(selected[0]).map(([k, from, to]) => (
             <div key={k} className="diff"><b>{k.toUpperCase()}</b><s>{fmt(from)}</s><ArrowRight size={14} /><em>{fmt(to)}</em><span>{to > from ? '+' : '−'}{fmt(Math.abs(to - from))}</span></div>
           ))}
@@ -114,22 +106,19 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
       {!hover && selected.length > 0 && !allLocked && (
         <section className="transform">
           <div className="tool-row">
-              <button className="icon" aria-label="На опору" data-tip="На опору" data-kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></button>
-              <button className="icon" aria-label="Повторить" data-tip="Повторить" aria-pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></button>
-              <button className="icon" aria-label="Отразить по X" data-tip="Отразить по X" data-kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></button>
-              <button className="icon" aria-label="Отразить по Y" data-tip="Отразить по Y" data-kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></button>
-              <button className="icon" aria-label="Повернуть на 90°" data-tip="Повернуть на 90°" data-kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></button>
+              <IconButton variant="field" label="На опору" kbd="G" onClick={() => editor.drop()}><ArrowDownToLine size={14} /></IconButton>
+              <IconButton variant="field" label="Повторить" pressed={repeating} onClick={() => setRepeating(r => !r)}><CopyPlus size={14} /></IconButton>
+              <IconButton variant="field" label="Отразить по X" kbd="⇧H" onClick={() => editor.mirror('x')}><FlipHorizontal2 size={14} /></IconButton>
+              <IconButton variant="field" label="Отразить по Y" kbd="⇧V" onClick={() => editor.mirror('y')}><FlipVertical2 size={14} /></IconButton>
+              <IconButton variant="field" label="Повернуть на 90°" kbd="⇧R" onClick={() => editor.rotate()}><RotateCw size={14} /></IconButton>
             </div>
           {repeating && (
             <div className="repeat">
               <NumberField label="×" value={rep.count} step={1} min={2} onCommit={count => setRep(r => ({ ...r, count: Math.round(count) }))} />
               <NumberField label="↔" value={rep.gap} step={2} onCommit={gap => setRep(r => ({ ...r, gap }))} />
-              <div className="segmented">
-                {(['x', 'y', 'z'] as const).map(axis => (
-                  <button key={axis} aria-pressed={rep.axis === axis} onClick={() => setRep(r => ({ ...r, axis }))}>{axis.toUpperCase()}</button>
-                ))}
-              </div>
-              <button className="button is-primary" onClick={() => { editor.repeat(rep.axis, rep.count, rep.gap); setRepeating(false); }}>Повторить</button>
+              <Segmented label="Ось" wide value={rep.axis} onChange={axis => setRep(r => ({ ...r, axis }))}
+                options={(['x', 'y', 'z'] as const).map(axis => ({ value: axis, label: axis.toUpperCase() }))} />
+              <Button variant="primary" onClick={() => { editor.repeat(rep.axis, rep.count, rep.gap); setRepeating(false); }}>Повторить</Button>
             </div>
           )}
         </section>
@@ -139,8 +128,8 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
         <section>
           <div className="section-head">
             <h3>Задержка</h3>
-            <button className="icon" aria-label="Убрать наведение" data-tip="Убрать наведение" disabled={!selected.some(p => p.hover)}
-              onClick={() => editor.clearHover(ids)}><RotateCcw size={14} /></button>
+            <IconButton label="Убрать наведение" disabled={!selected.some(p => p.hover)}
+              onClick={() => editor.clearHover(ids)}><RotateCcw size={14} /></IconButton>
           </div>
           <div className="delay">
             <input type="range" className="slider" min={0} max={1} step={.02} value={common(p => p.delay ?? 0) ?? 0}
@@ -155,13 +144,13 @@ export function PropertiesPanel({ editor }: { editor: Editor }) {
 
       {hover && <Timeline editor={editor} onPlay={play} playing={playing} />}
       {hover && !selected.length && !scene.objects.some(p => hoverKind(p) !== 'rest') && (
-        <section><p className="panel-hint">Ничего не двигается</p></section>
+        <section><p className="panel-hint"><b>Ничего не двигается.</b> Выделите блок и сдвиньте или измените его здесь — так он поведёт себя при наведении.</p></section>
       )}
 
       {!hover && selected.length === 0 && (
         <section>
           <h3>Название</h3>
-          <input className="text" value={scene.title}
+          <TextField value={scene.title} placeholder="Подпись для экранных читалок"
             onFocus={() => { titleEdit.current = false; }}
             onChange={e => {
               const title = e.target.value;

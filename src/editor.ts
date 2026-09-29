@@ -53,7 +53,8 @@ export function useEditor() {
   const [tool, setTool] = useState<Tool>('move');
   const [save, setSave] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [message, setMessageState] = useState<string | null>(null);
+  // A toast: news in ink, trouble in red.
+  const [message, setMessageState] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   // The last change that came from disk (an agent), to flash and offer undo.
   const [external, setExternal] = useState<{ name: string; ids: string[]; at: number; created?: boolean; quiet?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -78,10 +79,11 @@ export function useEditor() {
 
   // Messages fade on their own.
   const messageTimer = useRef(0);
-  const setMessage = useCallback((text: string | null) => {
+  const setMessage = useCallback((text: string | null, tone: 'info' | 'error' = 'info') => {
     clearTimeout(messageTimer.current);
-    setMessageState(text);
-    if (text) messageTimer.current = window.setTimeout(() => setMessageState(null), 4500);
+    setMessageState(text ? { text, tone } : null);
+    // Errors stay longer: there is more to read and something to do.
+    if (text) messageTimer.current = window.setTimeout(() => setMessageState(null), tone === 'error' ? 8000 : 4500);
   }, []);
 
   useEffect(() => {
@@ -95,11 +97,11 @@ export function useEditor() {
       setAgent(library.mcp ?? null);
       setBrowserOnly(library.local);
       broken.current = new Set(library.broken?.map(b => b.name));
-      if (library.broken?.length) setMessage(`Не читается: ${library.broken.map(b => `${b.name}.json — ${b.error}`).join('; ')}`);
+      if (library.broken?.length) setMessage(`Не читается: ${library.broken.map(b => `${b.name}.json — ${b.error}`).join('; ')}`, 'error');
       const fromUrl = new URLSearchParams(location.search).get('file');
       setCurrent(library.files.find(s => s.name === fromUrl)?.name ?? library.files[0]?.name ?? null);
       setLoaded(true);
-    }).catch(error => setMessage(error.message));
+    }).catch(error => setMessage(error.message, 'error'));
   }, []);
 
   const track = (name: string) => (stacks.current[name] ??= { past: [], future: [] });
@@ -144,7 +146,7 @@ export function useEditor() {
         else if (cur.current === name) setSelection(sel.current.filter(id => scene.objects.some(p => p.id === id)));
       } catch (error) {
         broken.current.add(name);
-        setMessage(`${name}.json: ${(error as Error).message}`);
+        setMessage(`${name}.json: ${(error as Error).message}`, 'error');
       }
     };
     const onAgent = (activity: api.Activity) => setAgent(activity);
@@ -319,7 +321,7 @@ export function useEditor() {
     const text = `В files/${cur.current}.json поправь блоки ${pieces.map(p => p.id).join(', ')}:\n\n`
       + pieces.map(p => JSON.stringify(cleanHover(p))).join('\n')
       + '\n\nЧто сделать: ';
-    navigator.clipboard?.writeText(text).then(() => setMessage('Промпт скопирован — вставьте в Claude или Codex и допишите задачу'), () => setMessage('Не удалось скопировать'));
+    navigator.clipboard?.writeText(text).then(() => setMessage('Промпт скопирован — вставьте в Claude или Codex и допишите задачу'), () => setMessage('Не удалось скопировать', 'error'));
   };
   const paste = async (text?: string) => {
     const pieces = text !== undefined ? clipboard.parse(text) : copied.current;
@@ -432,19 +434,19 @@ export function useEditor() {
     try {
       addFile(validName(base) ? base : 'imported', validateScene(JSON.parse(text)));
     } catch (error) {
-      setMessage(`Не получилось открыть: ${(error as Error).message}`);
+      setMessage(`Не получилось открыть: ${(error as Error).message}`, 'error');
     }
   };
   const renameFile = async (next: string) => {
     const from = cur.current;
     if (!from || next === from) return true;
-    if (!validName(next)) { setMessage('Имя файла: латиница, цифры и дефис'); return false; }
-    if (taken(next)) { setMessage(`Файл ${next} уже есть`); return false; }
+    if (!validName(next)) { setMessage('Имя файла: латиница, цифры и дефис', 'error'); return false; }
+    if (taken(next)) { setMessage(`Файл ${next} уже есть`, 'error'); return false; }
     await flush();
     try {
       await api.renameFile(from, next);
     } catch (error) {
-      setMessage((error as Error).message);
+      setMessage((error as Error).message, 'error');
       return false;
     }
     const { [from]: scene, ...rest } = latest.current;
@@ -463,7 +465,7 @@ export function useEditor() {
     try {
       await api.deleteFile(name);
     } catch (error) {
-      setMessage((error as Error).message);
+      setMessage((error as Error).message, 'error');
       return;
     }
     dirty.current.delete(name);

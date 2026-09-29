@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Box, Check, Copy, Plus, X } from 'lucide-react';
+import { Box, Plus, X } from 'lucide-react';
 import { ClaudeMark } from './ClaudeMark';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import type { Scene } from '../model';
+import { Button, IconButton, Kbd } from './kit';
 
 export function Dialog({ title, onClose, children, wide }: { title: string; onClose?: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -16,7 +17,7 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
       <div className={`dialog${wide ? ' is-wide' : ''}`} role="dialog" aria-label={title}>
         <header>
           <h2>{title}</h2>
-          {onClose && <button className="icon" onClick={onClose} aria-label="Закрыть"><X size={14} /></button>}
+          {onClose && <IconButton label="Закрыть" tip={false} onClick={onClose}><X size={14} /></IconButton>}
         </header>
         {children}
       </div>
@@ -64,20 +65,6 @@ export function Gallery({ editor, onClose, onClaude }: { editor: Editor; onClose
   );
 }
 
-export function CopyBlock({ text, mono }: { text: string; mono?: boolean }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className={`copy${mono ? ' is-mono' : ''}`}>
-      <pre>{text}</pre>
-      <button className="icon" aria-label="Скопировать" data-tip={copied ? 'Скопировано' : 'Скопировать'} onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      }}>{copied ? <Check size={13} /> : <Copy size={13} />}</button>
-    </div>
-  );
-}
-
 const KEYS: [string, [string, string][]][] = [
   ['Инструменты', [['V', 'Выбор'], ['H · Пробел', 'Рука'], ['B', 'Блок'], ['P', 'Плита']]],
   ['Холст', [['Alt + тащить', 'По высоте'], ['Shift', 'Шаг 10'], ['⌘', 'Без привязки к соседям'], ['Alt + ручка', 'Размер от центра'],
@@ -96,7 +83,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
         {KEYS.map(([group, keys]) => (
           <dl key={group}>
             <h3>{group}</h3>
-            {keys.map(([k, v]) => <div key={k}><dt>{v}</dt><dd><kbd>{k}</kbd></dd></div>)}
+            {keys.map(([k, v]) => <div key={k}><dt>{v}</dt><dd><Kbd>{k}</Kbd></dd></div>)}
           </dl>
         ))}
       </div>
@@ -104,13 +91,14 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Our own confirm, in place of the browser's.
-export function ConfirmDialog({ title, action, onConfirm, onClose }: { title: string; action: string; onConfirm: () => void; onClose: () => void }) {
+// Our own confirm, in place of the browser's: what will happen, then the choice.
+export function ConfirmDialog({ title, text, action, onConfirm, onClose }: { title: string; text?: ReactNode; action: string; onConfirm: () => void; onClose: () => void }) {
   return (
     <Dialog title={title} onClose={onClose}>
+      {text && <div className="dialog-body"><p>{text}</p></div>}
       <div className="dialog-actions">
-        <button className="button" onClick={onClose}>Отмена</button>
-        <button className="button is-danger" autoFocus onClick={() => { onClose(); onConfirm(); }}>{action}</button>
+        <Button variant="quiet" onClick={onClose}>Отмена</Button>
+        <Button variant="danger" autoFocus onClick={() => { onClose(); onConfirm(); }}>{action}</Button>
       </div>
     </Dialog>
   );

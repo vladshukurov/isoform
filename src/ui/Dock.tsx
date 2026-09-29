@@ -3,6 +3,7 @@ import { ArrowUp, Box, ChevronDown, CornerDownLeft, Hand, Layers2, MousePointer2
 import type { Editor, Tool } from '../editor';
 import { ClaudeMark } from './ClaudeMark';
 import { Connect } from './Connect';
+import { Chip, IconButton, Kbd, Segmented } from './kit';
 import { Menu, type MenuItem } from './Menu';
 import { Thread } from './Thread';
 
@@ -48,10 +49,8 @@ export function Dock({ editor }: { editor: Editor }) {
   // Edit what's there, or build a new scene from scratch in its place.
   const [mode, setMode] = useState<'edit' | 'new'>('edit');
   const [tick, setTick] = useState(0);
-  const [pill, setPill] = useState<{ x: number; w: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  const toolsRef = useRef<HTMLDivElement>(null);
   const focus = () => input.current?.focus();
 
   useEffect(() => { if (focused && !root.current?.contains(document.activeElement)) focus(); }, [focused]);
@@ -61,10 +60,6 @@ export function Dock({ editor }: { editor: Editor }) {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [prompt]);
-  useLayoutEffect(() => {
-    const el = toolsRef.current?.querySelector<HTMLElement>(`[data-tool="${editor.tool}"]`);
-    if (el) setPill({ x: el.offsetLeft, w: el.offsetWidth });
-  }, [editor.tool]);
 
   const hasScene = !!scene?.objects.length;
   const fresh = mode === 'new' && hasScene;
@@ -141,12 +136,10 @@ export function Dock({ editor }: { editor: Editor }) {
                   onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top - 6 }); }}>
                   <ClaudeMark size={14} /><span>{!setup && claude.talks.length > 1 ? claude.talk?.title ?? 'Новый разговор' : 'Claude'}</span><ChevronDown size={12} />
                 </button>
-                {!setup && hasScene && <div className="dock-mode" role="radiogroup">
-                  <button role="radio" aria-checked={mode === 'edit'} onMouseDown={e => e.preventDefault()} onClick={() => setMode('edit')} disabled={running}>Править</button>
-                  <button role="radio" aria-checked={mode === 'new'} onMouseDown={e => e.preventDefault()} onClick={() => setMode('new')} disabled={running}>С нуля</button>
-                </div>}
-                {!setup && <button className="icon" aria-label="Новый разговор" data-tip="Новый разговор" disabled={running || !claude.talk}
-                  onMouseDown={e => e.preventDefault()} onClick={() => { claude.newConversation(); focus(); }}><SquarePen size={14} /></button>}
+                {!setup && hasScene && <Segmented label="Что делает Claude" size="sm" value={mode} onChange={setMode} disabled={running}
+                  options={[{ value: 'edit', label: 'Править', tip: 'Поправить то, что есть' }, { value: 'new', label: 'С нуля', tip: 'Собрать новую сцену на месте этой' }]} />}
+                {!setup && <IconButton label="Новый разговор" disabled={running || !claude.talk}
+                  onMouseDown={e => e.preventDefault()} onClick={() => { claude.newConversation(); focus(); }}><SquarePen size={14} /></IconButton>}
               </div>
               {setup ? <Connect connection={c} onReady={focus} /> : <Thread editor={editor} ideas={examples} onAsk={ask} />}
             </div>
@@ -154,19 +147,12 @@ export function Dock({ editor }: { editor: Editor }) {
         </div>
 
         <div className="dock-bar">
-          <div className="dock-tools" ref={toolsRef}>
-            {pill && <i className="dock-pill" style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} />}
-            {TOOLS.map(({ tool, Icon, tip, kbd }) => (
-              <button key={tool} data-tool={tool} className="dock-tool" aria-pressed={editor.tool === tool} aria-label={tip} data-tip={tip} data-kbd={kbd}
-                onMouseDown={e => e.preventDefault()} onClick={() => editor.setTool(tool)}><Icon size={18} /></button>
-            ))}
-          </div>
+          <Segmented label="Инструмент" size="lg" tone="ink" value={editor.tool} onChange={editor.setTool}
+            options={TOOLS.map(({ tool, Icon, tip, kbd }) => ({ value: tool, label: <Icon size={18} />, aria: tip, tip, kbd }))} />
           <span className="dock-sep" />
           <div className={`dock-input${c.ready ? '' : ' is-off'}`} onMouseDown={e => { if (e.target !== input.current) { e.preventDefault(); focus(); } }}>
-            {fresh && <span className="dock-chip is-new">С нуля</span>}
-            {selection.length > 0 && !fresh && <span className="dock-chip">
-              <Box size={12} />{selection.length === 1 ? selection[0] : `${selection.length} ${plural(selection.length)}`}
-            </span>}
+            {fresh && <Chip tone="ink">С нуля</Chip>}
+            {selection.length > 0 && !fresh && <Chip mono icon={<Box size={12} />}>{selection.length === 1 ? selection[0] : `${selection.length} ${plural(selection.length)}`}</Chip>}
             <div className="dock-field">
               <textarea ref={input} rows={1} value={prompt} placeholder={placeholder} disabled={running}
                 onChange={e => setPrompt(e.target.value)}
@@ -176,12 +162,12 @@ export function Dock({ editor }: { editor: Editor }) {
                 }} />
               {rotating && <span className="dock-example" key={example} aria-hidden>
                 <span>{claude.hasSession && !selection.length ? 'Дальше: ' : ''}{example}</span>
-                <kbd>Tab</kbd>
+                <Kbd>Tab</Kbd>
               </span>}
             </div>
-            <kbd className="dock-kbd">⌘K</kbd>
+            <Kbd>⌘K</Kbd>
             {running
-              ? <button className="dock-send is-stop" aria-label="Остановить" data-tip="Остановить" onClick={claude.stop}><Square size={10} fill="currentColor" /></button>
+              ? <button className="dock-send" aria-label="Остановить" data-tip="Остановить" onClick={claude.stop}><Square size={10} fill="currentColor" /></button>
               : <button className="dock-send" aria-label="Отправить" disabled={!prompt.trim() || !c.ready}
                   onMouseDown={e => e.preventDefault()} onClick={() => ask(prompt)}>{prompt.trim() ? <ArrowUp size={16} strokeWidth={2.4} /> : <CornerDownLeft size={14} />}</button>}
           </div>

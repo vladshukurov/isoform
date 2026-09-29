@@ -1,10 +1,11 @@
-import { Check, LoaderCircle, Plus } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { CardPreview } from '../CardPreview';
 import type { Editor } from '../editor';
 import { ClaudeMark } from './ClaudeMark';
 import { Connect } from './Connect';
 import { Dialog } from './Dialogs';
 import { Mark } from './Glyph';
+import { Button, Code, Kbd, Spinner } from './kit';
 
 // The first screen for someone who has just cloned the project: connect
 // Claude, then start a scene — with Claude, from the series, or empty.
@@ -14,13 +15,13 @@ export function Welcome({ editor, onClose }: { editor: Editor; onClose?: () => v
   const start = (template?: string) => { editor.createFile(template); onClose?.(); };
   const withClaude = () => { editor.createFile(); claude.setOpen(true); onClose?.(); };
   const status = !c.local && !c.browserOnly
-    ? <span className="welcome-status"><LoaderCircle size={12} className="spin" />Ищем Claude Code на этом компьютере</span>
+    ? <span className="welcome-status"><Spinner size={12} />Ищем Claude Code на этом компьютере</span>
     : c.ready
       ? <span className="welcome-status">
           {c.engine === 'local' ? `Claude Code${c.local?.version ? ` ${c.local.version.split(' ')[0]}` : ''} — ваша подписка` : 'Ключ API сохранён'}
-          <button className="link-button" onClick={() => c.choose(c.engine === 'local' ? 'api' : 'local')} hidden={c.browserOnly}>
+          {!c.browserOnly && <Button variant="link" onClick={() => c.choose(c.engine === 'local' ? 'api' : 'local')}>
             {c.engine === 'local' ? 'Ключ API вместо подписки' : 'Подписка вместо ключа'}
-          </button>
+          </Button>}
         </span>
       : null;
 
@@ -66,7 +67,7 @@ export function Welcome({ editor, onClose }: { editor: Editor; onClose?: () => v
             </div>
           </li>
         </ol>
-        <p className="welcome-foot">Все клавиши — <kbd>?</kbd> · Новая версия редактора — <code>git pull</code>, <code>npm install</code> и снова <code>npm run dev</code></p>
+        <p className="welcome-foot">Все клавиши — <Kbd>?</Kbd> · Новая версия редактора — <Code>git pull</Code>, <Code>npm install</Code> и снова <Code>npm run dev</Code></p>
       </div>
     </Dialog>
   );

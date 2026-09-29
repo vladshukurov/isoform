@@ -1,19 +1,19 @@
 import { useState } from 'react';
-import { ExternalLink, KeyRound, LoaderCircle, TerminalSquare } from 'lucide-react';
+import { ExternalLink, KeyRound, TerminalSquare } from 'lucide-react';
 import type { Connection } from '../ai/connection';
 import { ClaudeMark } from './ClaudeMark';
-import { CopyBlock } from './Dialogs';
+import { Button, CopyBlock, Notice, TextField } from './kit';
 
 export const INSTALL = 'npm install -g @anthropic-ai/claude-code';
 
 // What's missing before Claude can work, one step at a time: install Claude
 // Code, sign in to it, or give an API key. Shown in the dock and in the
 // onboarding; `onReady` puts the caret back where the person was going.
-export function Connect({ connection: c, onReady }: { connection: Connection; onReady?: () => void }) {
+export function Connect({ connection: c, onReady, focus = true }: { connection: Connection; onReady?: () => void; focus?: boolean }) {
   const [code, setCode] = useState('');
   const [draft, setDraft] = useState('');
   const other = (label: string, engine: 'local' | 'api') =>
-    <button type="button" className="link-button" onClick={() => c.choose(engine)}>{label}</button>;
+    <Button variant="link" onClick={() => c.choose(engine)}>{label}</Button>;
 
   if (c.need === 'install') return (
     <div className="connect">
@@ -24,7 +24,7 @@ export function Connect({ connection: c, onReady }: { connection: Connection; on
       </div>
       <CopyBlock text={INSTALL} mono />
       <div className="connect-row">
-        <button className="button is-primary" onClick={c.refresh}>Проверить</button>
+        <Button variant="primary" onClick={c.refresh}>Проверить</Button>
         {other('Или ключ API', 'api')}
       </div>
     </div>
@@ -42,11 +42,9 @@ export function Connect({ connection: c, onReady }: { connection: Connection; on
           e.preventDefault();
           if (code.trim() && await c.submitCode(code)) { setCode(''); onReady?.(); }
         }}>
-          <input autoFocus value={code} onChange={e => setCode(e.target.value)} placeholder="Код подтверждения" spellCheck={false} autoComplete="off" />
-          <button className="button is-primary" disabled={!code.trim() || c.login.phase === 'checking'}>
-            {c.login.phase === 'checking' ? <LoaderCircle size={14} className="spin" /> : 'Подключить'}
-          </button>
-          <button type="button" className="button is-quiet" onClick={() => { c.cancelLogin(); setCode(''); }}>Отмена</button>
+          <TextField autoFocus={focus} mono invalid={!!c.login.error} value={code} onChange={e => setCode(e.target.value)} placeholder="Код подтверждения" spellCheck={false} autoComplete="off" />
+          <Button type="submit" variant="primary" disabled={!code.trim()} loading={c.login.phase === 'checking'}>Подключить</Button>
+          <Button variant="quiet" onClick={() => { c.cancelLogin(); setCode(''); }}>Отмена</Button>
         </form>
       </> : <>
         <div className="connect-text">
@@ -54,13 +52,11 @@ export function Connect({ connection: c, onReady }: { connection: Connection; on
           <span>Опишите идею или правку словами — Claude расставит блоки на холсте, и вы увидите каждый шаг. Работает по вашей подписке.</span>
         </div>
         <div className="connect-row">
-          <button className="button is-primary" onClick={c.signIn} disabled={c.login.phase === 'opening'}>
-            {c.login.phase === 'opening' ? <LoaderCircle size={14} className="spin" /> : 'Войти через Claude'}
-          </button>
+          <Button variant="primary" onClick={c.signIn} loading={c.login.phase === 'opening'}>Войти через Claude</Button>
           {other('Или ключ API', 'api')}
         </div>
       </>}
-      {c.login.error && <div className="connect-error">{c.login.error}</div>}
+      {c.login.error && <Notice tone="error">{c.login.error}</Notice>}
     </div>
   );
 
@@ -72,9 +68,11 @@ export function Connect({ connection: c, onReady }: { connection: Connection; on
         <span>Создайте ключ в <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com <ExternalLink size={11} /></a> — оплата по использованию. Ключ остаётся в этом браузере и уходит только в Anthropic.</span>
       </div>
       <div className="connect-code">
-        <input type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={draft} onChange={e => setDraft(e.target.value)} />
-        <button className="button is-primary" disabled={!draft.trim()}>Сохранить</button>
+        <TextField type="password" mono autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={draft} onChange={e => setDraft(e.target.value)}
+          invalid={!!draft.trim() && !draft.trim().startsWith('sk-')} />
+        <Button type="submit" variant="primary" disabled={!draft.trim().startsWith('sk-')}>Сохранить</Button>
       </div>
+      {!!draft.trim() && !draft.trim().startsWith('sk-') && <Notice tone="error">Ключ Anthropic начинается с sk-ant-</Notice>}
       {!c.browserOnly && <div className="connect-row">{other('Или подписка Claude через Claude Code', 'local')}</div>}
     </form>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownUp, FileUp, Redo2, Undo2, X } from 'lucide-react';
+import { ArrowDownUp, CircleAlert, FileUp, Redo2, Undo2, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
@@ -9,6 +9,7 @@ import { Dock } from './ui/Dock';
 import { FileHeader, TopActions } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
 import { PropertiesPanel } from './ui/PropertiesPanel';
+import { IconButton, Spinner } from './ui/kit';
 import { Tooltip } from './ui/Tooltip';
 import { Welcome } from './ui/Welcome';
 
@@ -137,6 +138,7 @@ export function App() {
       onDrop={e => { if (e.dataTransfer.files.length) { e.preventDefault(); setDropping(false); open(e.dataTransfer.files); } }}>
       <main className="stage">
         <Canvas editor={editor} />
+        {!editor.loaded && <div className="loading" role="status"><Spinner />Открываем файлы</div>}
       </main>
 
       {/* Everything else floats over the canvas. */}
@@ -149,7 +151,7 @@ export function App() {
         {scene && <aside className="panel left surface">
           <div className="panel-title">
             <h3>Слои</h3>
-            <button className="icon" aria-label="Порядок по глубине" data-tip="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={14} /></button>
+            <IconButton label="Порядок по глубине" onClick={editor.autoOrder} disabled={!scene.objects.length}><ArrowDownUp size={14} /></IconButton>
           </div>
           <LayersPanel editor={editor} />
         </aside>}
@@ -157,19 +159,20 @@ export function App() {
         <PropertiesPanel editor={editor} />
 
         {scene && <div className="history surface">
-          <button className="icon" aria-label="Отменить" onClick={editor.undo}><Undo2 size={17} /></button>
-          <button className="icon" aria-label="Вернуть" onClick={editor.redo}><Redo2 size={17} /></button>
+          <IconButton size="lg" label="Отменить" kbd="⌘Z" onClick={editor.undo}><Undo2 size={17} /></IconButton>
+          <IconButton size="lg" label="Вернуть" kbd="⇧⌘Z" onClick={editor.redo}><Redo2 size={17} /></IconButton>
         </div>}
         {scene && <Dock editor={editor} />}
 
-        {editor.message && <div className="toast" role="status" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
+        {editor.message && <div className={`toast${editor.message.tone === 'error' ? ' is-error' : ''}`} role={editor.message.tone === 'error' ? 'alert' : 'status'}
+          onClick={() => editor.setMessage(null)}>{editor.message.tone === 'error' && <CircleAlert size={14} />}{editor.message.text}</div>}
         {external && <div className="toast toast-action" role="status">
           {external.created
             ? <><span>Новый файл {external.name}</span>
                 <button onClick={() => { editor.openFile(external.name); editor.dismissExternal(); }}>Открыть</button></>
             : <><span>Файл изменён снаружи{external.ids.length ? ` · ${external.ids.length} ${plural(external.ids.length)}` : ''}</span>
                 <button onClick={() => { editor.undo(); editor.dismissExternal(); }}>Отменить</button></>}
-          <button className="icon" aria-label="Закрыть" onClick={editor.dismissExternal}><X size={12} /></button>
+          <IconButton label="Закрыть" tip={false} onClick={editor.dismissExternal}><X size={12} /></IconButton>
         </div>}
       </div>
       {dropping && <div className="drop"><FileUp size={20} /> JSON</div>}
@@ -182,6 +185,7 @@ export function App() {
         onClaude={() => { editor.createFile(); setDialog(null); editor.claude.setOpen(true); }} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"
+        text={editor.browserOnly ? 'Файл удалится из этого браузера. Отменить это нельзя.' : `Файл files/${editor.current}.json удалится с диска. Отменить это нельзя.`}
         onConfirm={editor.deleteFile} onClose={() => setDialog(null)} />}
       <Tooltip />
     </div>

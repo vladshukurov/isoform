@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, TriangleAlert } from 'lucide-react';
+import { Box, Eye, EyeOff, Lock, LockOpen, TriangleAlert } from 'lucide-react';
 import { Glyph } from './Glyph';
 import { ENTER } from '../anim';
 import type { Editor } from '../editor';
 import { hoverKind, type Piece } from '../model';
 import { overlaps } from '../review';
 import { pieceMenu } from './actions';
+import { EmptyState, Kbd } from './kit';
 import { Menu, type MenuItem } from './Menu';
 
 type Drop = { id: string; above: boolean };
@@ -44,7 +45,13 @@ export function LayersPanel({ editor }: { editor: Editor }) {
     editor.moveBefore(ids, before);
   };
 
-  if (!list.length) return <div className="layers"><div className="layers-empty"><span>Пока пусто</span></div></div>;
+  if (!list.length) return (
+    <div className="layers">
+      <EmptyState icon={<Box size={18} />} title="Пока пусто">
+        <Kbd>B</Kbd> блок · <Kbd>P</Kbd> плита · <Kbd>⌘K</Kbd> Claude
+      </EmptyState>
+    </div>
+  );
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
       {list.map((p, i) => {
@@ -52,7 +59,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
         const isSelected = selection.includes(p.id);
         // Neighbouring selected rows join into one block, as in Figma.
         const joinUp = isSelected && selection.includes(list[i - 1]?.id), joinDown = isSelected && selection.includes(list[i + 1]?.id);
-        const cls = ['layer', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden',
+        const cls = ['layer', isSelected && 'is-selected', joinUp && 'join-up', joinDown && 'join-down', hovered === p.id && 'is-hovered', p.hidden && 'is-hidden', p.locked && 'is-locked',
           drop?.id === p.id && (drop.above ? 'drop-above' : 'drop-below')].filter(Boolean).join(' ');
         return (
           <div key={p.id} className={cls} draggable={editing !== p.id}
@@ -95,11 +102,11 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                 <i style={{ left: `${(p.delay ?? 0) / total * 100}%`, width: `${ENTER / total * 100}%` }} />
               </span>}
             </span>
-            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'}
+            <button className={`layer-toggle${p.locked ? ' is-on' : ''}`} aria-label={p.locked ? 'Разблокировать' : 'Заблокировать'} data-tip={p.locked ? 'Разблокировать' : 'Заблокировать'} data-kbd="⇧⌘L"
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'locked'); }}>
               {p.locked ? <Lock size={14} /> : <LockOpen size={14} />}
             </button>
-            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'}
+            <button className={`layer-toggle${p.hidden ? ' is-on' : ''}`} aria-label={p.hidden ? 'Показать' : 'Скрыть'} data-tip={p.hidden ? 'Показать' : 'Скрыть'} data-kbd="⇧⌘H"
               onClick={e => { e.stopPropagation(); editor.toggle([p.id], 'hidden'); }}>
               {p.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>

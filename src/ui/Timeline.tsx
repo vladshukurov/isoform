@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, Play } from 'lucide-react';
 import { ENTER } from '../anim';
 import type { Editor } from '../editor';
+import { IconButton } from './kit';
 import { hoverKind } from '../model';
 
 const round = (v: number) => Math.max(0, +(Math.round(v / .02) * .02).toFixed(2));
@@ -33,9 +34,9 @@ export function Timeline({ editor, onPlay, playing }: { editor: Editor; onPlay: 
       <div className="section-head">
         <h3>Таймлайн</h3>
         <div className="row">
-          <button className="icon" aria-label="Волна задержек" data-tip={selection.length ? 'Волна задержек по выделенным' : 'Волна задержек сзади вперёд'}
-            onClick={() => editor.stagger()}><AudioWaveform size={13} /></button>
-          <button className="icon" aria-label="Проиграть" data-tip="Проиграть на превью" onClick={() => onPlay(total)}><Play size={13} /></button>
+          <IconButton label={selection.length ? 'Волна задержек по выделенным' : 'Волна задержек сзади вперёд'}
+            onClick={() => editor.stagger()}><AudioWaveform size={13} /></IconButton>
+          <IconButton label="Проиграть на превью" onClick={() => onPlay(total)}><Play size={13} /></IconButton>
         </div>
       </div>
       <div className="timeline-rows" ref={track}>

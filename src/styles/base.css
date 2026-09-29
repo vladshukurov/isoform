@@ -1,0 +1,28 @@
+/* Resets and the few rules every element shares. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: var(--canvas); color: var(--text); font: var(--t-md)/1.35 var(--font); letter-spacing: -.003em; -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button {
+  border: 0; background: none; cursor: default; display: inline-flex; align-items: center; gap: var(--s-2); border-radius: var(--r-3);
+  transition: background-color var(--fast), color var(--fast), box-shadow var(--mid) var(--ease), opacity var(--fast);
+}
+button:disabled { opacity: .35; }
+/* Focus: one ink ring, only from the keyboard. */
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+textarea:focus-visible, input:focus-visible { outline: none; }
+h3 { font-size: 12px; font-weight: 600; }
+a { color: inherit; }
+svg.lucide { flex: none; }
+
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(3px); } }
+@keyframes rise-x { from { opacity: 0; transform: translateX(-50%) translateY(3px); } }
+@keyframes drop { from { opacity: 0; transform: translateX(-50%) translateY(-3px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(-2px); } }
+@keyframes breathe { 50% { opacity: .25; } }
+@keyframes turn { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

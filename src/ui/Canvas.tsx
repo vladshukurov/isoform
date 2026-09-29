@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Art } from '../Art';
+import { Button } from './kit';
 import type { Editor } from '../editor';
 import { AXIS, faces, outline, path, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
 import { GAP, GROUND, hoverBox, hoverKind, pick, PLATE, SNAP, type Box } from '../model';
@@ -369,7 +370,7 @@ export function Canvas({ editor }: { editor: Editor }) {
           {faces({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 }).map(f => <path key={f.kind} d={path(f.points)} />)}
         </svg>
         {!editor.claude.open && <div className="ideas" onPointerDown={e => e.stopPropagation()}>
-          {STARTERS.map(s => <button key={s} className="idea" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</button>)}
+          {STARTERS.map(s => <Button key={s} variant="glass" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</Button>)}
         </div>}
       </div>}
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}

@@ -1,0 +1,108 @@
+/* Design tokens. The chrome floats over a full-bleed canvas: quiet glass
+   cards, one ink colour for everything that is "on", colour only where it
+   means something (danger, success, Claude at work). The artwork keeps the
+   site's own tokens (passwork src/styles/isoform-art.css, theme-dark.css).
+   Every value below is shown on /design.html. */
+:root {
+  /* Colour — the chrome */
+  --canvas: #f3f3f1;          /* behind everything */
+  --grid: #e5e5e1;
+  --surface: rgba(255, 255, 255, .8);   /* floating glass */
+  --surface-solid: #ffffff;   /* dialogs, raised pills */
+  --field: rgba(0, 0, 0, .04);          /* inputs, secondary buttons */
+  --field-hover: rgba(0, 0, 0, .065);
+  --row-hover: rgba(0, 0, 0, .035);
+  --row-selected: rgba(0, 0, 0, .065);
+  --line: rgba(0, 0, 0, .06);
+  --line-strong: rgba(0, 0, 0, .1);
+  --text: #0d0d0d;
+  --muted: #86868b;           /* secondary text, idle icons */
+  --faint: #b9b9b5;           /* placeholders, off */
+  --ink: #0d0d0d;             /* on: selection, primary, focus */
+  --on-ink: #ffffff;
+  --danger: #e5484d;
+  --danger-soft: rgba(229, 72, 77, .1);
+  --on-danger: #ffffff;
+  --ok: #1bb86a;
+  --ok-soft: rgba(27, 184, 106, .12);
+  --claude: #d97757;
+  --claude-soft: rgba(217, 119, 87, .12);
+  --guide: #ff3b6b;           /* snapping guides, the playhead */
+  --backdrop: rgba(0, 0, 0, .18);
+
+  /* Colour — the artwork (site tokens) */
+  --page: #fafafb; --page-shade: #eceef1; --stroke: #b9bec6; --stroke-strong: #8e959f;
+  --hover-line: #5a87e0; --hover-edge: #a9c1ef; --hover-top: #f6f9ff; --hover-left: #edf3fe; --hover-right: #e3ecfc;
+
+  /* Type */
+  --font: Geist, Inter, system-ui, -apple-system, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --t-xs: 11px;     /* captions, kbd, badges */
+  --t-sm: 11.5px;   /* chips, meta, small buttons */
+  --t-md: 12.5px;   /* body — almost everything */
+  --t-lg: 13.5px;   /* the prompt, emphasis */
+  --t-xl: 15px;     /* dialog titles */
+  --t-2xl: 20px;    /* the one headline on the first screen */
+
+  /* Space: 4 · 6 · 8 · 10 · 12 · 16 · 20 · 24 */
+  --s-1: 4px; --s-2: 6px; --s-3: 8px; --s-4: 10px; --s-5: 12px; --s-6: 16px; --s-7: 20px; --s-8: 24px;
+
+  /* Size: controls come in four heights */
+  --h-xs: 24px;     /* chips, row toggles */
+  --h-sm: 28px;     /* icon buttons, tabs, segmented */
+  --h-md: 32px;     /* buttons, fields, rows */
+  --h-lg: 44px;     /* the floating chrome: file pill, tools, top actions */
+
+  /* Radius: nested corners step down by the padding between them */
+  --r-1: 6px; --r-2: 8px; --r-3: 10px; --r-4: 12px; --r-5: 14px; --r-6: 18px; --r-7: 22px;
+
+  /* Elevation */
+  --shadow: 0 0 0 1px rgba(0, 0, 0, .045), 0 1px 2px rgba(0, 0, 0, .04), 0 10px 32px rgba(0, 0, 0, .07);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, .06), 0 4px 10px rgba(0, 0, 0, .06), 0 24px 56px rgba(0, 0, 0, .14);
+  --shadow-raised: 0 0 0 1px var(--line), 0 1px 3px rgba(0, 0, 0, .08);  /* the pill in a segmented control */
+  --shadow-ink: 0 1px 2px rgba(0, 0, 0, .2), 0 6px 16px rgba(0, 0, 0, .14);
+  --shadow-ink-hover: 0 1px 2px rgba(0, 0, 0, .2), 0 10px 24px rgba(0, 0, 0, .22);
+  --blur: blur(22px) saturate(160%);
+
+  /* Motion: calm, never springy */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --fast: 140ms;    /* colour, hover */
+  --mid: 240ms;     /* pills, panels, fades */
+  --slow: 400ms;    /* entrances */
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #050505;
+  --grid: #141414;
+  --surface: rgba(16, 16, 16, .72);
+  --surface-solid: #121212;
+  --field: rgba(255, 255, 255, .045);
+  --field-hover: rgba(255, 255, 255, .08);
+  --row-hover: rgba(255, 255, 255, .035);
+  --row-selected: rgba(255, 255, 255, .075);
+  --line: rgba(255, 255, 255, .07);
+  --line-strong: rgba(255, 255, 255, .12);
+  --text: #ededed;
+  --muted: #7d7d7d;
+  --faint: #4a4a4a;
+  --ink: #f2f2f2;
+  --on-ink: #000000;
+  --danger: #f2555a;
+  --danger-soft: rgba(242, 85, 90, .14);
+  --ok-soft: rgba(27, 184, 106, .16);
+  --claude-soft: rgba(217, 119, 87, .16);
+  --backdrop: rgba(0, 0, 0, .5);
+
+  --page: #1a1b1e; --page-shade: #141518; --stroke: #34373d; --stroke-strong: #6b717b;
+  --hover-line: #7ea3ee; --hover-edge: #3f5a8c; --hover-top: #243453; --hover-left: #1f2d49; --hover-right: #1a263e;
+
+  --shadow: 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 1.5px rgba(0, 0, 0, .6), 0 18px 48px rgba(0, 0, 0, .55);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, .09), 0 24px 64px rgba(0, 0, 0, .7);
+  --shadow-raised: 0 0 0 1px var(--line), 0 1px 3px rgba(0, 0, 0, .5);
+  --shadow-ink: 0 0 0 1px rgba(255, 255, 255, .1), 0 8px 24px rgba(255, 255, 255, .08);
+  --shadow-ink-hover: 0 0 0 1px rgba(255, 255, 255, .14), 0 10px 28px rgba(255, 255, 255, .12);
+
+  color-scheme: dark;
+}
