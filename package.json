@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "export": "tsx scripts/export.ts"
+    "check": "tsx scripts/check.ts"
   },
   "dependencies": {
+    "lucide-react": "^1.48.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

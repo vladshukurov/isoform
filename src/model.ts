@@ -14,6 +14,10 @@ export type Piece = Box & {
   hover?: Partial<Box>;
   // Seconds before this block starts moving on hover.
   delay?: number;
+  // Editor only: hidden blocks are left out of the export, locked ones
+  // can't be picked on the canvas.
+  hidden?: boolean;
+  locked?: boolean;
 };
 
 // Mechanical scenes move like real parts (in-out); layered ones open like an

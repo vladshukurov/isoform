@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { formatScene } from '../src/format';
 import { validateScene } from '../src/model';
 import { siteMotion, siteSvg } from '../src/render';
+import { review } from '../src/review';
 
 const names = readdirSync('test/fixtures').filter(f => f.endsWith('.svg')).map(f => f.replace('.svg', ''));
-const load = (name: string) => validateScene(JSON.parse(readFileSync(`scenes/${name}.json`, 'utf8')));
+const load = (name: string) => validateScene(JSON.parse(readFileSync(`templates/${name}.json`, 'utf8')));
 
 // Fixtures are the SVGs shipped on the site from Isoform Studio. The new
 // editor must reproduce them byte for byte, morph outlines included.
@@ -35,8 +36,13 @@ describe('hover choreography', async () => {
 describe('scene files', () => {
   for (const name of names) {
     it(`${name}.json is stored in canonical form`, () => {
-      const text = readFileSync(`scenes/${name}.json`, 'utf8');
+      const text = readFileSync(`templates/${name}.json`, 'utf8');
       expect(formatScene(JSON.parse(text))).toBe(text);
     });
   }
+});
+
+// The checker agents rely on must accept every scene of the shipped series.
+describe('review', () => {
+  for (const name of names) it(`${name} passes`, () => expect(review(load(name))).toEqual([]));
 });

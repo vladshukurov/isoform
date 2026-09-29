@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { exportToSite, loadScenes, saveScene } from './api';
+import * as api from './api';
+import { formatScene } from './format';
 import {
   cleanHover, depthSort, GAP, GROUND, hoverBox, insertByDepth, PLATE, pick, uniqueId,
   type Box, type Piece, type Scene,
 } from './model';
 
 export type Mode = 'rest' | 'hover';
+export type Tool = 'move' | 'hand' | 'block' | 'plate';
 type History = { past: Scene[]; future: Scene[] };
 export type SaveState = 'saved' | 'saving' | 'error';
 
 const snapshotLimit = 200;
+const blank = (): Scene => ({ version: 2, title: 'Новая иллюстрация', motion: 'mechanical', objects: [] });
 
 // Editing a block in one state: at rest its hover travels with it (the
 // offset is what the page animates); in the hover state only hover changes.
@@ -21,57 +24,100 @@ function patchPiece(piece: Piece, patch: Partial<Box>, mode: Mode): Piece {
 }
 
 export function useEditor() {
-  const [scenes, setScenes] = useState<Record<string, Scene>>({});
+  const [files, setFiles] = useState<Record<string, Scene>>({});
+  const [templates, setTemplates] = useState<Record<string, Scene>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [root, setRoot] = useState('');
   const [current, setCurrent] = useState<string | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
+  const [hovered, setHovered] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('rest');
+  const [tool, setTool] = useState<Tool>('move');
   const [save, setSave] = useState<SaveState>('saved');
   const [message, setMessage] = useState<string | null>(null);
-  const [siteArtDir, setSiteArtDir] = useState('');
   const stacks = useRef<Record<string, History>>({});
-  // Mirror of scenes so edits and undo read the latest value synchronously.
-  const latest = useRef(scenes);
-  latest.current = scenes;
+  const dirty = useRef(new Set<string>());
+  // Mirror of files so edits and undo read the latest value synchronously.
+  const latest = useRef(files);
+  latest.current = files;
   const commit = (name: string, next: Scene) => {
     latest.current = { ...latest.current, [name]: next };
     dirty.current.add(name);
-    setScenes(latest.current);
+    setFiles(latest.current);
   };
-  const dirty = useRef(new Set<string>());
 
   useEffect(() => {
-    loadScenes().then(({ scenes: list, siteArtDir }) => {
-      setScenes(Object.fromEntries(list.map(s => [s.name, s.scene])));
-      setSiteArtDir(siteArtDir);
-      const fromUrl = new URLSearchParams(location.search).get('scene');
-      setCurrent(list.find(s => s.name === fromUrl)?.name ?? list[0]?.name ?? null);
+    api.loadLibrary().then(library => {
+      const byName = (list: { name: string; scene: Scene }[]) => Object.fromEntries(list.map(s => [s.name, s.scene]));
+      setFiles(byName(library.files));
+      setTemplates(byName(library.templates));
+      setRoot(library.root);
+      const fromUrl = new URLSearchParams(location.search).get('file');
+      setCurrent(library.files.find(s => s.name === fromUrl)?.name ?? library.files[0]?.name ?? null);
+      setLoaded(true);
     }).catch(error => setMessage(error.message));
   }, []);
 
+  // Someone else changed a file on disk: take it, unless it has unsaved
+  // local edits. For the open file the change goes into undo history.
   useEffect(() => {
-    if (current) history.replaceState(null, '', `?scene=${current}`);
-  }, [current]);
+    const onFile = async ({ name, removed }: { name: string; removed: boolean }) => {
+      if (dirty.current.has(name)) return;
+      if (removed) {
+        if (!latest.current[name]) return;
+        const { [name]: _, ...rest } = latest.current;
+        latest.current = rest;
+        setFiles(rest);
+        setCurrent(c => c === name ? Object.keys(rest)[0] ?? null : c);
+        return;
+      }
+      try {
+        const scene = await api.readFile(name);
+        const before = latest.current[name];
+        if (before && formatScene(before) === formatScene(scene)) return;
+        if (before) {
+          const h = track(name);
+          h.past = [...h.past.slice(-snapshotLimit), before];
+          h.future = [];
+        }
+        latest.current = { ...latest.current, [name]: scene };
+        setFiles(latest.current);
+        if (!before) { setCurrent(name); setSelection([]); }
+        setSelection(ids => ids.filter(id => scene.objects.some(p => p.id === id)));
+      } catch (error) {
+        setMessage(`${name}.json: ${(error as Error).message}`);
+      }
+    };
+    import.meta.hot?.on('isoform:file', onFile);
+    return () => import.meta.hot?.off('isoform:file', onFile);
+  }, []);
 
-  // Autosave every changed scene shortly after the last edit.
+  useEffect(() => {
+    if (loaded) history.replaceState(null, '', current ? `?file=${current}` : location.pathname);
+  }, [current, loaded]);
+
+  const flush = async () => {
+    const names = [...dirty.current].filter(name => latest.current[name]);
+    dirty.current.clear();
+    try {
+      await Promise.all(names.map(name => api.saveFile(name, latest.current[name])));
+      setSave('saved');
+    } catch (error) {
+      names.forEach(name => dirty.current.add(name));
+      setSave('error');
+      setMessage((error as Error).message);
+    }
+  };
+
+  // Autosave shortly after the last edit.
   useEffect(() => {
     if (!dirty.current.size) return;
     setSave('saving');
-    const timer = setTimeout(async () => {
-      const names = [...dirty.current];
-      dirty.current.clear();
-      try {
-        await Promise.all(names.map(name => saveScene(name, scenes[name])));
-        setSave('saved');
-      } catch (error) {
-        names.forEach(name => dirty.current.add(name));
-        setSave('error');
-        setMessage((error as Error).message);
-      }
-    }, 350);
+    const timer = setTimeout(flush, 350);
     return () => clearTimeout(timer);
-  }, [scenes]);
+  }, [files]);
 
-  const scene = current ? scenes[current] : undefined;
+  const scene = current ? files[current] : undefined;
   const track = (name: string) => (stacks.current[name] ??= { past: [], future: [] });
 
   // record = false while dragging: the drag start already saved a checkpoint.
@@ -104,20 +150,26 @@ export function useEditor() {
     change(s => ({ ...s, objects: s.objects.map(p => ids.includes(p.id) ? patchPiece(p, fn(mode === 'hover' ? hoverBox(p) : pick(p), p), mode) : p) }), record),
   [change, mode]);
 
-  const updatePiece = (id: string, patch: Partial<Piece>) => change(s => ({ ...s, objects: s.objects.map(p => p.id === id ? cleanHover({ ...p, ...patch }) : p) }));
+  const updatePiece = (id: string, patch: Partial<Piece>) =>
+    change(s => ({ ...s, objects: s.objects.map(p => p.id === id ? cleanHover({ ...p, ...patch }) : p) }));
+
+  const toggle = (ids: string[], flag: 'hidden' | 'locked') => change(s => {
+    const on = !s.objects.filter(p => ids.includes(p.id)).every(p => p[flag]);
+    return { ...s, objects: s.objects.map(p => ids.includes(p.id) ? { ...p, [flag]: on || undefined } : p) };
+  });
 
   const selected = scene?.objects.filter(p => selection.includes(p.id)) ?? [];
 
-  // A new block lands on top of the selection (one GAP above, like the
-  // series' floating layers), or on the ground at the origin.
-  const add = (kind: 'block' | 'plate') => {
+  // Without a drawn box a new block lands on top of the selection (one GAP
+  // above, like the series' floating layers), or on the ground at the origin.
+  const add = (kind: 'block' | 'plate', box?: Box) => {
     if (!scene) return;
     const base = selected.at(-1);
     const size = kind === 'plate' ? { w: base?.w ?? 120, d: base?.d ?? 120, h: PLATE } : { w: 60, d: 60, h: 60 };
-    const at = base
-      ? { x: base.x + (base.w - size.w) / 2, y: base.y + (base.d - size.d) / 2, z: base.z + base.h + GAP }
-      : { x: -size.w / 2, y: -size.d / 2, z: GROUND };
-    const piece: Piece = { id: uniqueId(scene, kind === 'plate' ? 'plate' : 'block'), ...at, ...size };
+    const at = box ?? (base
+      ? { x: base.x + (base.w - size.w) / 2, y: base.y + (base.d - size.d) / 2, z: base.z + base.h + GAP, ...size }
+      : { x: -size.w / 2, y: -size.d / 2, z: GROUND, ...size });
+    const piece: Piece = { id: uniqueId(scene, kind === 'plate' ? 'plate' : 'block'), ...at };
     change(s => ({ ...s, objects: insertByDepth(s.objects, piece) }));
     setSelection([piece.id]);
   };
@@ -156,10 +208,15 @@ export function useEditor() {
     }
     return { ...s, objects };
   });
-  const moveTo = (id: string, index: number) => change(s => {
-    const objects = s.objects.filter(p => p.id !== id);
-    objects.splice(index, 0, s.objects.find(p => p.id === id)!);
-    return { ...s, objects };
+  const toEdge = (front: boolean) => change(s => {
+    const moving = s.objects.filter(p => selection.includes(p.id)), rest = s.objects.filter(p => !selection.includes(p.id));
+    return { ...s, objects: front ? [...rest, ...moving] : [...moving, ...rest] };
+  });
+  // Moves blocks so they sit just before `before` in painter order (null = frontmost).
+  const moveBefore = (ids: string[], before: string | null) => change(s => {
+    const moving = s.objects.filter(p => ids.includes(p.id)), rest = s.objects.filter(p => !ids.includes(p.id));
+    const at = before === null ? rest.length : rest.findIndex(p => p.id === before);
+    return { ...s, objects: [...rest.slice(0, at), ...moving, ...rest.slice(at)] };
   });
   const autoOrder = () => change(s => ({ ...s, objects: depthSort(s.objects) }));
 
@@ -170,29 +227,56 @@ export function useEditor() {
     return true;
   };
 
-  const createScene = (name: string, from?: Scene) => {
-    const scene: Scene = from ? structuredClone(from) : { version: 2, title: 'Новая иллюстрация', motion: 'mechanical', objects: [] };
-    commit(name, scene);
-    setCurrent(name);
-    setSelection([]);
+  // Files
+  const freeName = (base: string) => {
+    if (!latest.current[base]) return base;
+    for (let i = 2; ; i++) if (!latest.current[`${base}-${i}`]) return `${base}-${i}`;
   };
-
-  const publish = async () => {
+  const openFile = (name: string | null) => { setCurrent(name); setSelection([]); setMode('rest'); setTool('move'); };
+  const createFile = (template?: string) => {
+    const name = freeName(template ?? 'scene');
+    commit(name, template ? structuredClone(templates[template]) : blank());
+    openFile(name);
+  };
+  const duplicateFile = () => {
     if (!current) return;
+    const name = freeName(current.replace(/-\d+$/, ''));
+    commit(name, structuredClone(latest.current[current]));
+    openFile(name);
+  };
+  const renameFile = async (next: string) => {
+    if (!current || next === current) return true;
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(next)) { setMessage('Имя файла: латиница, цифры и дефис'); return false; }
+    if (latest.current[next]) { setMessage(`Файл ${next} уже есть`); return false; }
+    await flush();
     try {
-      await saveScene(current, scenes[current]);
-      const { files } = await exportToSite(current);
-      setMessage(`Выгружено: ${files.map(f => f.split('/').pop()).join(', ')}`);
+      await api.renameFile(current, next);
     } catch (error) {
       setMessage((error as Error).message);
+      return false;
     }
+    const { [current]: scene, ...rest } = latest.current;
+    latest.current = { ...rest, [next]: scene };
+    stacks.current[next] = track(current);
+    setFiles(latest.current);
+    setCurrent(next);
+    return true;
+  };
+  const deleteFile = async () => {
+    if (!current) return;
+    dirty.current.delete(current);
+    await api.deleteFile(current).catch(() => undefined);
+    const { [current]: _, ...rest } = latest.current;
+    latest.current = rest;
+    setFiles(rest);
+    openFile(Object.keys(rest)[0] ?? null);
   };
 
   return {
-    scenes, current, scene, selection, selected, mode, save, message, siteArtDir,
-    open: (name: string) => { setCurrent(name); setSelection([]); },
-    setSelection, setMode, setMessage, change, checkpoint, updatePieces, updatePiece,
-    add, duplicate, remove, reorder, moveTo, autoOrder, rename, createScene, publish,
+    files, templates, loaded, root, current, scene, selection, selected, hovered, mode, tool, save, message,
+    setSelection, setHovered, setMode, setTool, setMessage, change, checkpoint, updatePieces, updatePiece, toggle,
+    add, duplicate, remove, reorder, toEdge, moveBefore, autoOrder, rename,
+    openFile, createFile, duplicateFile, renameFile, deleteFile,
     undo: () => step('undo'), redo: () => step('redo'),
   };
 }

@@ -1,38 +1,49 @@
 import { useEffect, useState } from 'react';
-import { Canvas } from './Canvas';
-import { CardPreview } from './CardPreview';
+import { ArrowDownUp } from 'lucide-react';
 import { useEditor } from './editor';
-import { Inspector } from './Inspector';
-import { Layers } from './Layers';
-import { Series } from './Series';
+import { Canvas } from './ui/Canvas';
+import { AgentDialog, NewFileDialog, SeriesDialog, ShortcutsDialog } from './ui/Dialogs';
+import { FileHeader } from './ui/FileHeader';
+import { LayersPanel } from './ui/LayersPanel';
+import { PropertiesPanel } from './ui/PropertiesPanel';
+import { Toolbar } from './ui/Toolbar';
 
+type Dialog = 'new' | 'series' | 'agent' | 'shortcuts' | null;
 const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement).closest('input, textarea, select');
+const readTheme = () => { try { return localStorage.getItem('isoform-theme') === 'dark'; } catch { return false; } };
 
 export function App() {
   const editor = useEditor();
-  const [view, setView] = useState<'scene' | 'series'>('scene');
-  const [dark, setDark] = useState(false);
-  const [newName, setNewName] = useState('');
-  const { scene, selection, mode } = editor;
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dark, setDark] = useState(readTheme);
+  const { scene, selection } = editor;
 
-  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; }, [dark]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    try { localStorage.setItem('isoform-theme', dark ? 'dark' : 'light'); } catch { /* private mode */ }
+  }, [dark]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e) || view !== 'scene') return;
-      const cmd = e.metaKey || e.ctrlKey;
-      if (cmd && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
-      if (cmd && e.key.toLowerCase() === 'd') { e.preventDefault(); editor.duplicate(); return; }
-      if (cmd && e.key.toLowerCase() === 'a') { e.preventDefault(); editor.setSelection(scene?.objects.map(p => p.id) ?? []); return; }
+      if (typing(e) || dialog) return;
+      const cmd = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
+      if (cmd && key === 'z') { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
+      if (cmd && key === 'd') { e.preventDefault(); editor.duplicate(); return; }
+      if (cmd && key === 'a') { e.preventDefault(); editor.setSelection(scene?.objects.filter(p => !p.hidden && !p.locked).map(p => p.id) ?? []); return; }
+      if (cmd && e.shiftKey && key === 'h') { e.preventDefault(); editor.toggle(selection, 'hidden'); return; }
+      if (cmd && e.shiftKey && key === 'l') { e.preventDefault(); editor.toggle(selection, 'locked'); return; }
       if (cmd) return;
+      if (e.key === '?') setDialog('shortcuts');
       if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); editor.remove(); }
-      if (e.key === 'Escape') editor.setSelection([]);
-      if (e.key === 'b') editor.add('block');
-      if (e.key === 'p') editor.add('plate');
+      if (e.key === 'Escape') { editor.tool !== 'move' ? editor.setTool('move') : editor.setSelection([]); }
+      if (key === 'v') editor.setTool('move');
+      if (key === 'h') editor.setTool('hand');
+      if (key === 'b') editor.setTool('block');
+      if (key === 'p') editor.setTool('plate');
       if (e.key === '1') editor.setMode('rest');
       if (e.key === '2') editor.setMode('hover');
-      if (e.key === ']') editor.reorder(1);
-      if (e.key === '[') editor.reorder(-1);
+      if (e.key === ']' || e.key === '}') e.shiftKey ? editor.toEdge(true) : editor.reorder(1);
+      if (e.key === '[' || e.key === '{') e.shiftKey ? editor.toEdge(false) : editor.reorder(-1);
       // Arrows move along the drawing's axes: ←→ is X, ↑↓ is Y, with Alt ↑↓ is height.
       const step = e.shiftKey ? 10 : 2;
       const move = { ArrowLeft: [-step, 0, 0], ArrowRight: [step, 0, 0], ArrowUp: e.altKey ? [0, 0, step] : [0, -step, 0], ArrowDown: e.altKey ? [0, 0, -step] : [0, step, 0] }[e.key];
@@ -45,81 +56,35 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const create = (copy: boolean) => {
-    const name = newName.trim().toLowerCase();
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return editor.setMessage('Имя файла: латиница, цифры и дефис, например vault');
-    if (editor.scenes[name]) return editor.setMessage(`Сцена ${name} уже есть`);
-    editor.createScene(name, copy ? scene : undefined);
-    setNewName('');
-    setView('scene');
-  };
+  // With no files yet the app opens on the new-file picker.
+  const empty = editor.loaded && !editor.current;
 
   return (
     <div className="app">
-      <header className="toolbar">
-        <strong className="brand">Isoform</strong>
-        <div className="segmented">
-          <button aria-pressed={view === 'scene'} onClick={() => setView('scene')}>Сцена</button>
-          <button aria-pressed={view === 'series'} onClick={() => setView('series')}>Серия</button>
-        </div>
-        {view === 'scene' && scene && <>
-          <div className="segmented" title="1 / 2">
-            <button aria-pressed={mode === 'rest'} onClick={() => editor.setMode('rest')}>Покой</button>
-            <button aria-pressed={mode === 'hover'} onClick={() => editor.setMode('hover')}>Наведение</button>
-          </div>
-          <div className="group">
-            <button onClick={() => editor.add('block')} title="B">+ Блок</button>
-            <button onClick={() => editor.add('plate')} title="P — плита толщиной 8; с выделением ложится сверху с зазором">+ Плита</button>
-            <button onClick={editor.duplicate} disabled={!selection.length} title="⌘D">Дублировать</button>
-            <button onClick={editor.remove} disabled={!selection.length} title="⌫">Удалить</button>
-          </div>
-          <div className="group">
-            <button onClick={editor.undo} title="⌘Z">↶</button>
-            <button onClick={editor.redo} title="⇧⌘Z">↷</button>
-          </div>
-        </>}
-        <span className="spacer" />
-        <span className={`save save-${editor.save}`}>{{ saved: 'Сохранено', saving: 'Сохраняю…', error: 'Не сохранено' }[editor.save]}</span>
-        <button onClick={() => setDark(d => !d)}>{dark ? 'Светлая' : 'Тёмная'}</button>
-        {view === 'scene' && scene && <button className="primary" onClick={editor.publish} title={editor.siteArtDir}>Выгрузить на сайт</button>}
-      </header>
-
-      <aside className="scenes">
-        <h2>Сцены</h2>
-        <ul>
-          {Object.entries(editor.scenes).map(([name, s]) => (
-            <li key={name}>
-              <button aria-current={name === editor.current && view === 'scene'} onClick={() => { editor.open(name); setView('scene'); }}>
-                <b>{name}</b><span>{s.title}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="new-scene">
-          <input placeholder="имя-файла" value={newName} onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && create(false)} />
-          <div className="row">
-            <button onClick={() => create(false)}>Новая</button>
-            <button onClick={() => create(true)} disabled={!scene}>Копия текущей</button>
-          </div>
-        </div>
+      <aside className="panel left">
+        <FileHeader editor={editor} dark={dark} onDark={() => setDark(d => !d)}
+          onNew={() => setDialog('new')} onSeries={() => setDialog('series')}
+          onAgent={() => setDialog('agent')} onShortcuts={() => setDialog('shortcuts')} />
+        {scene && <div className="panel-title">
+          <h3>Слои</h3>
+          <button className="icon" title="Порядок по глубине" onClick={editor.autoOrder}><ArrowDownUp size={13} /></button>
+        </div>}
+        <LayersPanel editor={editor} />
       </aside>
 
       <main className="stage">
-        {view === 'series' ? <Series editor={editor} onOpen={name => { editor.open(name); setView('scene'); }} /> : <Canvas editor={editor} />}
-        {editor.message && <div className="toast" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
+        <Canvas editor={editor} />
+        {scene && <Toolbar editor={editor} />}
+        {editor.message && editor.save !== 'error' && <div className="toast" onClick={() => editor.setMessage(null)}>{editor.message}</div>}
       </main>
 
-      {view === 'scene' && scene && (
-        <aside className="panel">
-          <section>
-            <h2>Карточка на сайте <small>наведите</small></h2>
-            <CardPreview scene={scene} />
-          </section>
-          <Inspector editor={editor} />
-          <Layers editor={editor} />
-        </aside>
-      )}
+      <PropertiesPanel editor={editor} />
+
+      {(dialog === 'new' || (empty && dialog !== 'agent')) &&
+        <NewFileDialog editor={editor} onClose={empty ? undefined : () => setDialog(null)} onAgent={() => setDialog('agent')} />}
+      {dialog === 'series' && <SeriesDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'agent' && <AgentDialog editor={editor} onClose={() => setDialog(null)} />}
+      {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>
   );
 }

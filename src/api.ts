@@ -7,7 +7,13 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-export const loadScenes = () => call<{ scenes: { name: string; scene: Scene }[]; siteArtDir: string }>('/api/scenes');
-export const saveScene = (name: string, scene: Scene) =>
-  call(`/api/scenes/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(scene) });
-export const exportToSite = (name: string) => call<{ files: string[] }>(`/api/export/${encodeURIComponent(name)}`, { method: 'POST' });
+type Entry = { name: string; scene: Scene };
+const json = (method: string, value: unknown): RequestInit =>
+  ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) });
+const file = (name: string) => `/api/files/${encodeURIComponent(name)}`;
+
+export const loadLibrary = () => call<{ root: string; files: Entry[]; templates: Entry[] }>('/api/library');
+export const readFile = (name: string) => call<{ scene: Scene }>(file(name)).then(r => r.scene);
+export const saveFile = (name: string, scene: Scene) => call(file(name), json('PUT', scene));
+export const renameFile = (name: string, to: string) => call(`${file(name)}/rename`, json('POST', { to }));
+export const deleteFile = (name: string) => call(file(name), { method: 'DELETE' });

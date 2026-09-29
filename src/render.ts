@@ -8,9 +8,11 @@ import { hoverBox, hoverKind, type Scene } from './model';
 // Fallback colours for opening the SVG outside the site; the page overrides them.
 const tone = { line: '#a3a9b2', page: '#fafafb' };
 const attr = (name: string, value: string | number) => ` ${name}="${value}"`;
+const visible = (scene: Scene): Scene => ({ ...scene, objects: scene.objects.filter(p => !p.hidden) });
 const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-export function siteSvg(scene: Scene) {
+export function siteSvg(source: Scene) {
+  const scene = visible(source);
   const blocks = scene.objects.map(piece => {
     const open = hoverKind(piece) === 'morph' ? hoverBox(piece) : undefined;
     const openFaces = open ? faces(open) : [];
@@ -30,7 +32,8 @@ export function siteSvg(scene: Scene) {
 
 // The hover choreography in the shape of src/motion/isoform-motion.js:
 // travelling blocks become pieces, resized ones become morphs.
-export function siteMotion(scene: Scene) {
+export function siteMotion(source: Scene) {
+  const scene = visible(source);
   const pieces: [string, [number, number, number], { delay: number }][] = [];
   const morphDelay: Record<string, number> = {};
   for (const p of scene.objects) {
