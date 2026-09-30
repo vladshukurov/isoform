@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp, Box, ChevronDown, CircleHelp, Folder, CornerDownLeft, Hand, Layers2, MousePointer2, SquarePen, Square } from 'lucide-react';
+import { ArrowUp, Box, ChevronDown, CircleHelp, Folder, ScanEye, CornerDownLeft, Hand, Layers2, MousePointer2, SquarePen, Square } from 'lucide-react';
 import type { Editor, Tool } from '../editor';
 import { ClaudeMark } from './ClaudeMark';
 import { Connect } from './Connect';
@@ -147,6 +147,8 @@ export function Dock({ editor }: { editor: Editor }) {
                 </button>
                 {!setup && hasScene && <Segmented label="Что делает Claude" size="sm" value={mode} onChange={setMode} disabled={running}
                   options={[{ value: 'edit', label: 'Править' }, { value: 'new', label: 'С нуля' }]} />}
+                {!setup && hasScene && claude.canTidy && <IconButton tip label="Оценить сцену" disabled={running}
+                  onMouseDown={e => e.preventDefault()} onClick={() => claude.review()}><ScanEye size={14} /></IconButton>}
                 <IconButton label="Как работать с Claude" onMouseDown={e => e.preventDefault()} onClick={() => setGuide(true)}><CircleHelp size={14} /></IconButton>
                 {!setup && <IconButton tip label="Новый разговор" disabled={running || !claude.talk}
                   onMouseDown={e => e.preventDefault()} onClick={() => { claude.newConversation(); focus(); }}><SquarePen size={14} /></IconButton>}

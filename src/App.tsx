@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleAlert, FileUp, Redo2, Undo2, X } from 'lucide-react';
+import { CircleAlert, WandSparkles, FileUp, Redo2, Undo2, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
@@ -152,6 +152,8 @@ export function App() {
         {scene && <aside className="panel left surface">
           <div className="panel-title">
             <h3>Слои</h3>
+            {editor.claude.canTidy && <IconButton tip label="Причесать слои: имена, группы, название" disabled={editor.claude.running || !scene.objects.length || !editor.claude.connection.ready}
+              onClick={() => { editor.claude.setOpen(true); editor.claude.tidy(); }}><WandSparkles size={14} /></IconButton>}
           </div>
           <LayersPanel editor={editor} />
         </aside>}

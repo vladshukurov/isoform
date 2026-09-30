@@ -389,3 +389,7 @@ button.tile:disabled .tile-art { opacity: .45; }
 .turn-next { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .turn-next .btn { font-weight: 400; animation: rise var(--mid) var(--ease) both; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.remarks { display: grid; gap: var(--s-2); justify-items: start; }
+.remark { display: flex; align-items: center; gap: var(--s-4); width: 100%; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--r-3); background: var(--field); animation: rise var(--mid) var(--ease) both; }
+.remark span { flex: 1; min-width: 0; }
+.remarks > .btn { margin-top: 2px; }

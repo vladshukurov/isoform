@@ -110,6 +110,14 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
               : <>
                   <div className="turn-end"><p className={`turn-claude${job.result === STOPPED ? ' is-muted' : ''}`}><Typed key={job.at} text={job.result ?? ''} still={!!fixedNow} onDone={() => setTyped(job.at)} /></p>
                     {job.changed && <Button size="sm" onClick={onUndo} icon={<Undo2 size={12} />}>Отменить</Button>}</div>
+                  {!!job.remarks?.length && typed === job.at && <div className="remarks">
+                    {job.remarks.map(r => (
+                      <div key={r.issue} className="remark"><span>{r.issue}</span>
+                        <Button size="sm" onMouseDown={e => e.preventDefault()} onClick={() => onAsk(r.fix)}>{r.fix}</Button></div>
+                    ))}
+                    {job.remarks.length > 1 && <Button size="sm" variant="primary" onMouseDown={e => e.preventDefault()}
+                      onClick={() => onAsk(job.remarks!.map(r => r.fix).join('; '))}>Исправить всё</Button>}
+                  </div>}
                   {!!job.next?.length && typed === job.at && <div className="turn-next">{job.next.map((n, i) =>
                     <Button key={n} size="sm" style={{ animationDelay: `${i * .06}s` }} onMouseDown={e => e.preventDefault()} onClick={() => onAsk(n)}>{n}</Button>)}</div>}
                 </>}

@@ -10,7 +10,7 @@ export const localAgent = (): Promise<LocalAgent> => fetch('/api/agent').then(r 
 export async function runWithClaudeCode(job: Job) {
   const response = await fetch('/api/agent', {
     method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ file: job.file, prompt: job.prompt, selection: job.selection, fresh: !job.scene.objects.length, session: job.session }),
+    body: JSON.stringify({ file: job.file, prompt: job.prompt, selection: job.selection, fresh: !job.scene.objects.length, session: job.session, task: job.task }),
   });
   return consume(response, job);
 }

@@ -61,12 +61,12 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   const focus = (ids: string[]) => window.dispatchEvent(new CustomEvent('isoform:focus', { detail: ids }));
 
   // A group's header row: fold, select all its blocks, rename, hide, lock, drag.
-  const groupRow = (name: string) => {
+  const groupRow = (name: string, at: number) => {
     const members = scene.objects.filter(o => o.group === name), ids = members.map(o => o.id);
     const all = ids.every(id => selection.includes(id)), open = !folded.has(name);
     const hidden = members.every(o => o.hidden), locked = members.every(o => o.locked);
     return (
-      <div key={`group:${name}`} className={['layer', 'is-group', all && 'is-selected', all && open && 'join-down', hidden && 'is-hidden', locked && 'is-locked'].filter(Boolean).join(' ')} draggable={naming !== name}
+      <div key={`group:${name}:${at}`} className={['layer', 'is-group', all && 'is-selected', all && open && 'join-down', hidden && 'is-hidden', locked && 'is-locked'].filter(Boolean).join(' ')} draggable={naming !== name}
         onClick={e => editor.setSelection(e.metaKey || e.ctrlKey ? (all ? selection.filter(i => !ids.includes(i)) : [...new Set([...selection, ...ids])]) : ids)}
         onDoubleClick={() => setNaming(name)}
         onContextMenu={e => { e.preventDefault(); editor.setSelection(ids); setMenu({ x: e.clientX, y: e.clientY, items: pieceMenu(editor, ids) }); }}
@@ -97,7 +97,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   return (
     <div className="layers" onClick={e => { if (e.target === e.currentTarget) editor.setSelection([]); }}>
       {list.flatMap((p, i) => {
-        const head = p.group && list[i - 1]?.group !== p.group ? [groupRow(p.group)] : [];
+        const head = p.group && list[i - 1]?.group !== p.group ? [groupRow(p.group, i)] : [];
         if (p.group && folded.has(p.group)) return head;
         const kind = hoverKind(p);
         const isSelected = selection.includes(p.id);

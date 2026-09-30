@@ -231,7 +231,7 @@ export type RunEvent =
   | { kind: 'done'; text: string; cost?: number; turns?: number; ms?: number }
   | { kind: 'error'; text: string };
 // `model`, `effort` and `sketch: false` are for experiments (npm run eval); the editor uses the defaults.
-export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high'; sketch?: boolean };
+export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high'; sketch?: boolean; task?: Task };
 
 // The second pass of a new scene, in the same session at low effort: one
 // look at the preview, the obvious fixed, done. Long deliberation over the
@@ -242,6 +242,31 @@ function reviewFor(file: string) {
     'Сверь с тем, что делает сцену хорошей (выше). Исправь только явное — то, что сразу бросается в глаза: не читается образ, мелкая или спрятанная подвижная часть, разваливается движение, висит или торчит деталь. Одной записью файла, затем check. Если всё хорошо — ничего не меняй.',
     'Не перебирай варианты и не шлифуй мелочи.',
     FINISH,
+  ].join('\n');
+}
+
+// Tasks beside building the scene: tidy the layers without touching the
+// picture, or look at the scene and say what to fix, without changing it.
+export type Task = 'build' | 'tidy' | 'review';
+function taskFor(task: 'tidy' | 'review', file: string) {
+  const path = `${work}/files/${file}.json`;
+  if (task === 'tidy') return [
+    GUARD, FOCUS,
+    `Причеши слои сцены ${path}, не меняя картинку.`,
+    '- Дай блокам понятные kebab-case id по смыслу детали: lid, drawer-1, key-ring — а не block-3.',
+    '- Составные детали (из нескольких блоков, которые вместе что-то изображают или вместе двигаются) объедини в группы полем group; блоки группы должны стоять подряд в порядке отрисовки — переставляй только так, чтобы не менять, что чем перекрыто.',
+    '- Придумай title — короткую подпись по-русски для экранных читалок.',
+    '- Координаты, размеры, hover и delay не меняй ни на единицу.',
+    `Прочитай файл, запиши его целиком одним Write, затем npm run check ${file}.`,
+    'Последнее сообщение — одна короткая фраза по-русски, что стало понятнее.',
+  ].join('\n');
+  return [
+    GUARD, FOCUS,
+    `Оцени сцену ${path} как арт-директор серии. Файл не меняй.`,
+    `npm run render ${file} и посмотри previews/${file}.png (покой, середина наведения, наведение) и для сравнения previews/templates/storage.png.`,
+    'Что делает сцену хорошей: главный предмет крупный и читается сразу; подвижная часть заметная и едет одной группой; одно выразительное движение; соединения видны; ничего не висит и не торчит; нет мелочи.',
+    'Ответ — только строки замечаний, не больше трёх, самые важные сначала, каждая в виде: «- что не так, 3–8 слов → правка повелительно, до 6 слов». Например: «- Ключ мелкий и теряется → Ключ вдвое крупнее».',
+    'Если сцена хороша — одна строка: «Хорошо: почему, одной фразой».',
   ].join('\n');
 }
 
@@ -340,6 +365,14 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   const contentNow = () => { try { return readFile(file).objects.length > 0; } catch { return false; } };
   if (fresh) ensureTemplatePreviews();
   let current: ReturnType<typeof spawn> | null = null, stopped = false;
+  if (brief.task === 'tidy' || brief.task === 'review') {
+    const t = pass(cli, {
+      ask: taskFor(brief.task, file), effort: brief.task === 'review' ? 'medium' : 'low',
+      tools: brief.task === 'review' ? ['Read', 'Bash(npm run render:*)'] : ['Read', 'Write', 'Bash(npm run check:*)'],
+      session: null, firstWrite: 'Переименовывает и группирует',
+    }, file, emit);
+    return { stop: () => t.child.kill('SIGTERM'), exited: t.exited };
+  }
   const exited = (async () => {
     let sketched = false;
     if (fresh && brief.sketch !== false && !contentNow()) {
@@ -379,7 +412,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   return { stop: () => { stopped = true; current?.kill('SIGTERM'); }, exited };
 }
 
-export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
+export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown; task?: unknown }) {
   if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
   const file = body.file;
   // One run per file: a second request joins the one already going.
@@ -394,7 +427,8 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
     for (const c of run.clients) c.write(line);
   };
   const { stop, exited } = launch({
-    file, prompt: body.prompt, fresh: body.fresh === true,
+    file, prompt: body.prompt, fresh: body.fresh === true && !body.task,
+    task: body.task === 'tidy' || body.task === 'review' ? body.task : 'build',
     selection: Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [],
     session: typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null,
   }, emit);
