@@ -4,7 +4,8 @@
 import { useRef, useState } from 'react';
 import type { Problem } from './errors';
 
-export type Turn = { prompt: string; result?: string; error?: Problem };
+// `next`: the edits Claude proposed after this turn, offered again later.
+export type Turn = { prompt: string; result?: string; next?: string[]; error?: Problem };
 export type Talk = { id: string; title: string; session?: string; turns: Turn[]; at: number; named?: boolean };
 type FileTalks = { current: string | null; list: Talk[] };
 

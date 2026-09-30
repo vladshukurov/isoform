@@ -115,7 +115,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     }
     const changed = ws.settle(file, scene);
     setJob(j => j && { ...j, running: false, changed, ...outcome });
-    talks.record(file, talk.id, { prompt, result: outcome.result, error: outcome.error }, changed);
+    talks.record(file, talk.id, { prompt, result: outcome.result, next: outcome.next, error: outcome.error }, changed);
   };
 
   // What the picture is made of, names aside: each block at rest and on hover, and its delay.

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEven
 import { Art } from '../Art';
 import { hoverAt } from '../anim';
 import { Button } from './kit';
+import { suggest } from '../ai/suggest';
 import type { Editor } from '../editor';
 import { AXIS, faces, outline, path, project, unprojectFloor, vertices, type Vec2 } from '../geometry';
 import { GAP, GROUND, hoverBox, hoverKind, pick, PLATE, SNAP, type Box } from '../model';
@@ -27,7 +28,6 @@ const fmt = (v: number) => String(+v.toFixed(2));
 // Smart guides pull within this many screen pixels; hold ⌘ to place freely.
 const PULL = 6;
 const dialogOpen = () => !!document.querySelector('.backdrop');
-const STARTERS = ['Сейф с дверцей, которая приоткрывается', 'Стопка карточек доступа', 'Сервер с дисками, которые выдвигаются волной'];
 // The canvas under the floating chrome: panels at the sides, the dock below.
 const safeArea = ({ w, h }: { w: number; h: number }) => {
   const l = w > 1000 ? 280 : w > 760 ? 240 : 16, r = w > 1000 ? 312 : w > 760 ? 272 : 16, t = 72, b = 104;
@@ -421,7 +421,7 @@ export function Canvas({ editor }: { editor: Editor }) {
           {faces({ x: -34, y: -34, z: 0, w: 68, d: 68, h: 40 }).map(f => <path key={f.kind} d={path(f.points)} />)}
         </svg>
         {!editor.claude.open && <div className="ideas" onPointerDown={e => e.stopPropagation()}>
-          {STARTERS.map(s => <Button key={s} variant="glass" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</Button>)}
+          {suggest({ selection: [], fresh: true, file: editor.current ?? '' }).slice(0, 3).map(s => <Button key={s} variant="glass" onClick={() => window.dispatchEvent(new CustomEvent('isoform:ask', { detail: s }))}>{s}</Button>)}
         </div>}
       </div>}
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}

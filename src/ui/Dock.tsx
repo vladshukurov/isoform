@@ -6,6 +6,7 @@ import { Connect } from './Connect';
 import { Chip, IconButton, Kbd, Segmented } from './kit';
 import { Menu, type MenuItem } from './Menu';
 import { Thread } from './Thread';
+import { suggest } from '../ai/suggest';
 import { Dialog } from './Dialogs';
 import { Guide } from './Welcome';
 
@@ -15,27 +16,6 @@ const TOOLS: { tool: Tool; Icon: typeof Box; tip: string; kbd: string }[] = [
   { tool: 'block', Icon: Box, tip: 'Блок', kbd: 'B' },
   { tool: 'plate', Icon: Layers2, tip: 'Плита', kbd: 'P' },
 ];
-// Examples that rotate in the empty field; Tab puts the one shown into it.
-const EXAMPLES = {
-  empty: [
-    'Сейф на плите, дверца приоткрывается при наведении',
-    'Стопка карточек доступа, верхняя выезжает вперёд',
-    'Сервер с тремя дисками, диски выдвигаются волной',
-    'Замок со скобой, скоба поднимается при наведении',
-  ],
-  scene: [
-    'Добавь крышку, которая приподнимается при наведении',
-    'Сделай композицию ниже и шире',
-    'Пусть детали двигаются волной, от дальних к ближним',
-    'Поставь всё на плиту побольше',
-  ],
-  selection: [
-    'Подними на 10 и добавь волну задержек',
-    'Сделай вдвое тоньше',
-    'Пусть выезжает вперёд при наведении',
-    'Повтори три раза с зазором 12',
-  ],
-};
 const plural = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'блок' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'блока' : 'блоков';
 
 // The one bar at the bottom of the canvas: the tools, and a line to Claude
@@ -96,7 +76,10 @@ export function Dock({ editor }: { editor: Editor }) {
     if (!prompt.trim()) setFocused(false);
   };
 
-  const examples = fresh || !hasScene ? EXAMPLES.empty : selection.length ? EXAMPLES.selection : EXAMPLES.scene;
+  // Examples in the field and ideas in an empty conversation, from the scene
+  // and what Claude proposed last; never what this file was already asked.
+  const turns = claude.talks.flatMap(t => t.turns);
+  const examples = suggest({ scene, selection, fresh, file: editor.current ?? '', asked: turns.map(t => t.prompt), next: turns.findLast(t => t.next?.length)?.next });
   const example = examples[tick % examples.length];
   const rotating = c.ready && !running && !prompt;
   useEffect(() => {
