@@ -56,8 +56,9 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
     );
   };
   const last = job && !job.running && thread.at(-1)?.prompt === job.prompt;
-  // Still before the first write after 20 s: say what's going on and for how long.
-  const slow = !!job?.running && now - job.at > 20000 && !job.steps.some(st => /каркас|блоки|деталь/i.test(st.text));
+  // 20 s in and the scene itself not yet written: say what's going on and for how long.
+  const sketched = !!job?.steps.some(st => st.text === 'Набрасывает форму');
+  const slow = !!job?.running && now - job.at > 20000 && !job.steps.some(st => /каркас|сцену|блоки|деталь|превью/i.test(st.text));
 
   return (
     <div className="thread" ref={log} aria-live="polite">
@@ -73,7 +74,9 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
       {job && (
         <div className="turn is-current">
           <p className="turn-you">{job.prompt}</p>
-          {job.running && slow && <p className="turn-hint">Придумывает образ — это самый долгий шаг, обычно 1–3 минуты. Блоки появятся на холсте, как только начнётся запись.</p>}
+          {job.running && slow && <p className="turn-hint">{sketched
+            ? 'На холсте — быстрый набросок. Claude продумывает сцену целиком, обычно 2–4 минуты; потом один раз сверит её с превью.'
+            : 'Придумывает образ — это самый долгий шаг, обычно 1–3 минуты. Блоки появятся на холсте, как только начнётся запись.'}</p>}
           {job.running
             ? <div className="turn-live">
                 <Dot live />

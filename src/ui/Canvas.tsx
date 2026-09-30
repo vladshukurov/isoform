@@ -112,6 +112,16 @@ export function Canvas({ editor }: { editor: Editor }) {
     return { s, ox: mx - (mx - v.ox) * s / v.s, oy: my - (my - v.oy) * s / v.s };
   });
   useEffect(() => { if (size.w > 0) fitView(); }, [editor.current, size.w > 0]);
+  // A scene Claude starts on an empty canvas: the camera glides to frame it
+  // as the first blocks land, and again when the run ends.
+  const wasEmpty = useRef(false);
+  useEffect(() => {
+    if (!editor.claude.running) { if (wasEmpty.current && objects.length) flyTo([]); wasEmpty.current = false; return; }
+    if (!objects.length) wasEmpty.current = true;
+    else if (wasEmpty.current && objects.length && !framed.current) { framed.current = true; flyTo([]); }
+  }, [editor.claude.running, objects.length > 0]);
+  const framed = useRef(false);
+  useEffect(() => { if (!editor.claude.running) framed.current = false; }, [editor.claude.running]);
 
   // Scroll pans, ⌘/Ctrl scroll and trackpad pinch zoom around the cursor.
   useEffect(() => {

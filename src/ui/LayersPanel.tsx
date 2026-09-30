@@ -22,6 +22,8 @@ export function LayersPanel({ editor }: { editor: Editor }) {
   // Folded groups, and the group being renamed; the panel's own state.
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [naming, setNaming] = useState<string | null>(null);
+  // While Claude writes this file, overlaps are half-done work, not mistakes.
+  const drafting = editor.claude.running && editor.claude.job?.file === editor.current;
   const flags = useMemo(() => scene ? overlaps(scene) : new Map<string, Set<string>>(), [scene]);
   if (!scene) return <div className="layers" />;
   const list = [...scene.objects].reverse();
@@ -140,7 +142,7 @@ export function LayersPanel({ editor }: { editor: Editor }) {
                   onChange={e => { e.target.value = e.target.value.replace(/[^\w-]/g, ''); }} />
               : <span className="layer-name">{p.id}</span>}
             <span className="layer-status">
-              {flags.has(p.id) && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={14} /></span>}
+              {flags.has(p.id) && !drafting && <span className="layer-warn" data-tip={`Пересекается с ${[...flags.get(p.id)!].join(', ')}`}><TriangleAlert size={14} /></span>}
               {kind !== 'rest' && editor.mode === 'hover' && <span className="layer-track">
                 <i style={{ left: `${(p.delay ?? 0) / total * 100}%`, width: `${ENTER / total * 100}%` }} />
               </span>}

@@ -103,26 +103,32 @@ function ensureTemplatePreviews() {
 const sample = (name: string) => { try { return readFileSync(resolve(dirs.templates, `${name}.json`), 'utf8').trim(); } catch { return ''; } };
 const lines = (file: string, ids: string[]) => { try { return readFile(file).objects.filter(p => ids.includes(p.id)).map(p => JSON.stringify(p)).join('\n'); } catch { return ''; } };
 
-type Ask = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean };
+type Ask = { file: string; prompt: string; selection: string[]; fresh: boolean; hasContent: boolean; followUp: boolean; sketched?: boolean };
 // Three kinds of work, each with the process that gives the best result:
 // a new scene (look at the series, massing first, then detail, then an
 // honest comparison), an edit (quick, the rest untouched) and a detail
 // (only the selected blocks, judged on a preview with the rest faded).
-function promptFor({ file, prompt, selection, fresh, hasContent, followUp }: Ask) {
-  const where = `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: files/${file}.json, он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`
+function promptFor({ file, prompt, selection, fresh, hasContent, followUp, sketched }: Ask) {
+  const where = `Правила серии и формат — в AGENTS.md, он уже у тебя в контексте, не перечитывай его. Файл сцены: ${work}/files/${file}.json (пиши только туда), он открыт в редакторе, пользователь смотрит на холст, пока ты пишешь.`
     + (followUp ? ' Это продолжение разговора; пользователь мог поправить файл руками.' : '') + ' ' + FOCUS;
   if (fresh) return [
     GUARD, where,
-    hasContent ? 'Собери новую сцену с нуля: текущее содержимое файла замени целиком (прочитай файл — этого требует Write — но не опирайся на него).' : 'Файл пустой: собери сцену с нуля.',
+    sketched ? 'На холсте уже быстрый набросок формы — его сделала быстрая модель, чтобы пользователь не ждал пустой холст. Прочитай файл: если образ годится — развивай его, если нет — замени целиком.'
+      : hasContent ? 'Собери новую сцену с нуля: текущее содержимое файла замени целиком (прочитай файл — этого требует Write — но не опирайся на него).' : 'Файл пустой: собери сцену с нуля.',
     `Задача: ${prompt}`,
     'Как работать, по шагам:',
-    `1. Посмотри на серию глазами: ${LOOK.map(n => `previews/templates/${n}.png`).join(' и ')}. Данные двух сцен серии — в конце, templates/ больше не читай.`,
+    `1. Первым делом, не раздумывая, открой ${LOOK.map(n => `previews/templates/${n}.png`).join(' и ')} — так выглядит серия. Данные двух сцен серии — в конце, templates/ больше не читай.`,
     '2. Выбери один ясный образ — предмет, который сразу объясняет задачу. Не повторяй сцены серии. Не перебирай варианты: первый хороший — в работу.',
     '3. Сразу запиши каркас: 3–6 основных объёмов. Пользователь ждёт и смотрит на пустой холст — каждая минута раздумий до каркаса видна. Детали продумаешь, глядя на каркас.',
-    `4. npm run check ${file} и npm run render ${file}, посмотри previews/${file}.png.`,
-    '5. Детали — обязательный шаг: доведи до уровня серии, 12–20 блоков. Приёмы серии: цоколь или плита под предметом, корпус, крышка или верхний слой с зазором 10, повторяющиеся детали рядом (3–5 одинаковых: ящики, диски, карточки, засовы), детали на видимых гранях +X и +Y, минимум три уровня по высоте. Одно выразительное движение при наведении, у повторяющихся деталей — волна задержек. Запиши файл целиком ещё раз.',
-    `6. Снова check и render; сравни с картинками серии честно: читается ли образ, богаче ли он простого ящика, баланс, аккуратность соединений, правдоподобность движения. Если не дотягивает — поправь и повтори. Смотри превью только через Read.`,
-    FORMAT, FINISH,
+    '4. Сразу за каркасом — детали, обязательный шаг: доведи до уровня серии, 12–20 блоков. Приёмы серии: цоколь или плита под предметом, корпус, крышка или верхний слой с зазором 10, повторяющиеся детали рядом (3–5 одинаковых: ящики, диски, карточки, засовы), детали на видимых гранях +X и +Y, минимум три уровня по высоте. Запиши файл целиком ещё раз.',
+    `5. npm run check ${file} и исправь ошибки. Превью пока не смотри и не шлифуй — на это будет отдельный короткий шаг. Закончи одной фразой.`,
+    'Что делает сцену хорошей:',
+    '- Главный предмет крупный и читается с первого взгляда; корпуса 120–200 по стороне, как в серии. Без мелочи меньше 10 по двум сторонам.',
+    '- Подвижная часть заметная: не меньше четверти главного объёма, ход 20–60, в сторону зрителя (+X, +Y) или вверх — чтобы движение было видно на карточке.',
+    '- Подвижная часть из нескольких блоков — одна группа (поле group): у всех её блоков одинаковый сдвиг и одинаковая задержка, в середине движения ничего не разваливается.',
+    '- Одно выразительное движение; у повторяющихся деталей — волна задержек с шагом 0.04–0.08.',
+    '- Соединения видны: ничто спереди не прячет, где деталь входит в корпус или стоит на плите.',
+    FORMAT,
     `Сцены серии:\n${SAMPLES.map(sample).join('\n\n')}`,
   ].filter(Boolean).join('\n');
   if (selection.length) return [
@@ -193,7 +199,7 @@ export function partialScene(input: string, path: string) {
 // A run lives on the server, apart from the page that started it: reloading
 // or closing the editor doesn't stop Claude, and an editor that opens the
 // file again picks the run up where it is (every line so far is replayed).
-type Run = { file: string; prompt: string; at: number; child: ReturnType<typeof spawn>; lines: string[]; clients: Set<ServerResponse>; done: boolean };
+type Run = { file: string; prompt: string; at: number; stop: () => void; lines: string[]; clients: Set<ServerResponse>; done: boolean };
 const runs = new Map<string, Run>();
 export const activeRuns = () => [...runs.values()].filter(r => !r.done).map(r => ({ file: r.file, prompt: r.prompt, at: r.at }));
 
@@ -212,7 +218,7 @@ export function watchAgent(file: string, res: ServerResponse) {
 }
 export function stopAgent(file: string) {
   const run = runs.get(file);
-  if (run && !run.done) run.child.kill('SIGTERM');
+  if (run && !run.done) run.stop();
   return { ok: true };
 }
 
@@ -224,32 +230,42 @@ export type RunEvent =
   | { kind: 'session'; text: string }
   | { kind: 'done'; text: string; cost?: number; turns?: number; ms?: number }
   | { kind: 'error'; text: string };
-// `model` and `effort` are for experiments (npm run eval); the editor uses the defaults.
-export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high' };
+// `model`, `effort` and `sketch: false` are for experiments (npm run eval); the editor uses the defaults.
+export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high'; sketch?: boolean };
 
-// Claude Code working on one file, headless, in the workspace. Resolves when
-// it exits; `emit` hears everything on the way.
-export function launch(brief: Brief, emit: (event: RunEvent) => void) {
-  const { file, prompt, fresh = false, session = null } = brief;
-  const selection = fresh ? [] : brief.selection ?? [];
-  let hasContent = false;
-  try { hasContent = readFile(file).objects.length > 0; } catch { /* a new file */ }
-  if (fresh) ensureTemplatePreviews();
-  const ask = promptFor({ file, prompt, selection, fresh, hasContent, followUp: !!session });
-  const cli = claudeCli();
-  if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
-  if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
-  // Two live runs: low effort from scratch saved three minutes but skipped the
-  // detail pass and looked worse; the silent start stayed either way. So a
-  // new scene gets medium effort, edits low; Sonnet is the faster choice.
-  const args = ['-p', ask,
-    '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', brief.effort ?? (fresh ? 'medium' : 'low'),
-    ...(brief.model ? ['--model', brief.model] : []),
-    '--permission-mode', 'acceptEdits', '--allowedTools', TOOLS.join(','), '--disallowedTools', DENY.join(','),
-    ...(session ? ['--resume', session] : [])];
-  const child = spawn(cli.path, args, { cwd: work, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+// The second pass of a new scene, in the same session at low effort: one
+// look at the preview, the obvious fixed, done. Long deliberation over the
+// picture was where the minutes went in live runs.
+function reviewFor(file: string) {
+  return [
+    `Теперь посмотри на результат: npm run render ${file} и previews/${file}.png (три кадра: покой, середина наведения, наведение).`,
+    'Сверь с тем, что делает сцену хорошей (выше). Исправь только явное — то, что сразу бросается в глаза: не читается образ, мелкая или спрятанная подвижная часть, разваливается движение, висит или торчит деталь. Одной записью файла, затем check. Если всё хорошо — ничего не меняй.',
+    'Не перебирай варианты и не шлифуй мелочи.',
+    FINISH,
+  ].join('\n');
+}
 
-  let buffer = '', errors = '', sessionId = session, ended = false, writes = 0, thought = '', said = '';
+// A quick sketch of the form, by a fast model, so the canvas isn't empty
+// while the main pass thinks over the idea.
+function sketchFor(file: string, prompt: string) {
+  return [
+    `Задача: ${prompt}`,
+    `Одним вызовом Write сразу запиши ${work}/files/${file}.json — набросок основной формы, 4–8 блоков: ${LAYOUT}. Формат и правила серии — в AGENTS.md: земля z = 14, сетка 10, сцена в пределах ±150 по X и Y, блоки не пересекаются. Поле hover не нужно.`,
+    'Ничего не читай, ничего не проверяй и не объясняй. После записи ответь одним словом: готово.',
+  ].join('\n');
+}
+
+type Pass = { ask: string; model?: string; effort: string; tools: string[]; session: string | null; firstWrite: string; env?: Record<string, string> };
+// One `claude -p` over the file: its stream turned into the editor's events.
+function pass(cli: Cli, p: Pass, file: string, emit: (event: RunEvent) => void) {
+  const args = ['-p', p.ask,
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--effort', p.effort,
+    ...(p.model ? ['--model', p.model] : []),
+    '--permission-mode', 'acceptEdits', '--allowedTools', p.tools.join(','), '--disallowedTools', DENY.join(','),
+    ...(p.session ? ['--resume', p.session] : [])];
+  const child = spawn(cli.path, args, { cwd: work, env: { ...process.env, ...p.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+
+  let buffer = '', errors = '', sessionId = p.session, ended = false, writes = 0, thought = '', said = '', lastDisk = '';
   // Tool input streaming in, per content block, and how many blocks were last shown.
   const inputs = new Map<number, { name: string; json: string; shown: number }>();
   child.stdout!.setEncoding('utf8').on('data', (chunk: string) => {
@@ -265,7 +281,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
           const e = event.event;
           if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
             inputs.set(e.index, { name: e.content_block.name, json: '', shown: -1 });
-            if (e.content_block.name === 'Write') { writes++; emit({ kind: 'tool', text: writes === 1 ? (fresh ? 'Ставит каркас' : selection.length ? 'Правит деталь' : 'Расставляет блоки') : 'Дорабатывает детали' }); }
+            if (e.content_block.name === 'Write') { writes++; emit({ kind: 'tool', text: writes === 1 ? p.firstWrite : 'Дорабатывает детали' }); }
           }
           if (e?.type === 'content_block_start' && e.content_block?.type === 'thinking') { thought = ''; emit({ kind: 'think', text: 'Думает' }); }
           // Where the thinking is streamed, its latest whole sentence is the step line.
@@ -286,6 +302,14 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
           continue;
         }
         if (event.type === 'assistant') for (const block of event.message?.content ?? []) { const step = describe(block); if (step) emit(step as RunEvent); }
+        // After every tool the file as it is on disk: the drafts show whatever
+        // way the model wrote the JSON (the streamed parse wants a block per line).
+        if (event.type === 'user') {
+          try {
+            const scene = readFile(file), text = JSON.stringify(scene);
+            if (text !== lastDisk) { lastDisk = text; emit({ kind: 'scene', objects: scene.objects, title: scene.title, motion: scene.motion }); }
+          } catch { /* not written yet, or mid-write */ }
+        }
         if (event.type === 'result') {
           ended = true;
           if (sessionId) emit({ kind: 'session', text: sessionId });
@@ -304,13 +328,64 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
   return { child, exited };
 }
 
+// Claude Code working on one file, headless, in the workspace. A new scene may
+// start with a sketch by a fast model; then the main pass. `emit` hears
+// everything; `stop` ends whichever pass is running.
+export function launch(brief: Brief, emit: (event: RunEvent) => void) {
+  const { file, prompt, fresh = false, session = null } = brief;
+  const selection = fresh ? [] : brief.selection ?? [];
+  const cli = claudeCli();
+  if (!cli) throw new Error('Claude Code не найден: установите его или выберите ключ API');
+  if (!cli.loggedIn) throw new Error('Claude Code не авторизован: выполните в терминале claude и войдите через /login');
+  const contentNow = () => { try { return readFile(file).objects.length > 0; } catch { return false; } };
+  if (fresh) ensureTemplatePreviews();
+  let current: ReturnType<typeof spawn> | null = null, stopped = false;
+  const exited = (async () => {
+    let sketched = false;
+    if (fresh && brief.sketch !== false && !contentNow()) {
+      // The sketch shows its blocks and steps; its end, session and errors are its own.
+      // Thinking capped: measured, the sketch then lands in about ten seconds.
+      const s = pass(cli, { ask: sketchFor(file, prompt), model: 'haiku', effort: 'low', tools: ['Write'], session: null, firstWrite: 'Набрасывает форму', env: { MAX_THINKING_TOKENS: '1024' } }, file,
+        e => { if (e.kind === 'scene' || e.kind === 'tool') emit(e); });
+      current = s.child;
+      await s.exited;
+      if (stopped) return emit({ kind: 'done', text: 'Остановлено' });
+      sketched = contentNow();
+    }
+    const hasContent = contentNow();
+    // Two live runs: low effort from scratch saved three minutes but skipped
+    // the detail pass and looked worse; the silent start stayed either way.
+    let mainSession: string | null = null, lastSaid = '';
+    const main = pass(cli, {
+      ask: promptFor({ file, prompt, selection, fresh, hasContent, followUp: !!session, sketched }),
+      model: brief.model, effort: brief.effort ?? (fresh ? 'medium' : 'low'), tools: TOOLS, session,
+      firstWrite: fresh ? (sketched ? 'Строит сцену' : 'Ставит каркас') : selection.length ? 'Правит деталь' : 'Расставляет блоки',
+    }, file, e => {
+      // A new scene continues in a second pass: its end and session wait for that.
+      if (fresh && e.kind === 'session') { mainSession = e.text; return; }
+      if (fresh && e.kind === 'done' && e.text !== 'Остановлено') { lastSaid = e.text; return; }
+      emit(e);
+    });
+    current = main.child;
+    await main.exited;
+    // A new scene gets one quick look at its preview, in the same conversation.
+    if (fresh && !stopped && mainSession && contentNow()) {
+      const review = pass(cli, { ask: reviewFor(file), model: brief.model, effort: 'low', tools: TOOLS, session: mainSession, firstWrite: 'Правит по превью' }, file,
+        e => { if (e.kind !== 'error') emit(e); else emit({ kind: 'done', text: lastSaid }); });
+      current = review.child;
+      await review.exited;
+    }
+  })();
+  return { stop: () => { stopped = true; current?.kill('SIGTERM'); }, exited };
+}
+
 export async function runAgent(_req: IncomingMessage, res: ServerResponse, body: { file?: unknown; prompt?: unknown; selection?: unknown; fresh?: unknown; session?: unknown }) {
   if (!validName(body.file) || typeof body.prompt !== 'string' || !body.prompt.trim()) throw new Error('Нужны файл и задача');
   const file = body.file;
   // One run per file: a second request joins the one already going.
   const going = runs.get(file);
   if (going && !going.done) return attach(going, res);
-  const run: Run = { file, prompt: body.prompt, at: Date.now(), child: null!, lines: [], clients: new Set(), done: false };
+  const run: Run = { file, prompt: body.prompt, at: Date.now(), stop: () => undefined, lines: [], clients: new Set(), done: false };
   const emit = (event: RunEvent) => {
     // Only the latest draft matters to a late joiner; keep the replay short.
     if (event.kind === 'scene') { const at = run.lines.findIndex(l => l.startsWith('{"kind":"scene"')); if (at >= 0) run.lines.splice(at, 1); }
@@ -318,12 +393,12 @@ export async function runAgent(_req: IncomingMessage, res: ServerResponse, body:
     run.lines.push(line);
     for (const c of run.clients) c.write(line);
   };
-  const { child, exited } = launch({
+  const { stop, exited } = launch({
     file, prompt: body.prompt, fresh: body.fresh === true,
     selection: Array.isArray(body.selection) ? body.selection.filter((s): s is string => typeof s === 'string') : [],
     session: typeof body.session === 'string' && /^[\w-]+$/.test(body.session) ? body.session : null,
   }, emit);
-  run.child = child;
+  run.stop = stop;
   runs.set(file, run);
   attach(run, res);
   await exited;
