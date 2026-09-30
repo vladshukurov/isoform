@@ -33,7 +33,7 @@ input.file-name { width: 160px; border: 0; border-radius: var(--r-1); padding: 3
 .panel section { padding: var(--s-4) var(--s-3); display: grid; gap: var(--s-3); }
 .panel section + section { border-top: 1px solid var(--line); }
 .panel h3 { color: var(--muted); font-weight: 500; font-size: var(--t-sm); }
-.panel-title { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-1) var(--s-2) var(--s-4); flex: none; }
+.panel-title { display: flex; align-items: center; gap: var(--s-3); min-height: var(--h-sm); padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4); margin-bottom: var(--s-1); flex: none; }
 .panel-title h3 { flex: 1; color: var(--text); font-weight: 600; font-size: var(--t-md); }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin: calc(-1 * var(--s-1)) calc(-1 * var(--s-1)) calc(-1 * var(--s-1)) 0; }
 .panel-hint { color: var(--muted); line-height: 17px; }
@@ -389,11 +389,4 @@ button.tile:disabled .tile-art { opacity: .45; }
 .turn-next { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .turn-next .btn { font-weight: 400; animation: rise var(--mid) var(--ease) both; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.remarks { display: grid; gap: var(--s-2); justify-items: start; }
-.remark { display: flex; align-items: center; gap: var(--s-4); width: 100%; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--r-3); background: var(--field); animation: rise var(--mid) var(--ease) both; }
-.remark span { flex: 1; min-width: 0; }
-.remarks > .btn { margin-top: 2px; }
 
-/* Things Claude can do with the scene as it is: outlined, before the ideas */
-.ideas .btn.is-action { background: none; box-shadow: inset 0 0 0 1px var(--line-strong); }
-.ideas .btn.is-action:hover:not(:disabled) { background: var(--field); }

@@ -152,11 +152,7 @@ export function Dock({ editor }: { editor: Editor }) {
                 {!setup && <IconButton tip label="Новый разговор" disabled={running || !claude.talk}
                   onMouseDown={e => e.preventDefault()} onClick={() => { claude.newConversation(); focus(); }}><SquarePen size={14} /></IconButton>}
               </div>
-              {setup ? <Connect connection={c} onReady={focus} /> : <Thread editor={editor} ideas={examples} onAsk={ask}
-                actions={hasScene && claude.canTidy && !selection.length ? [
-                  { label: 'Оценить сцену', run: claude.review },
-                  { label: 'Названия и группы по смыслу', run: claude.tidy },
-                ] : []} />}
+              {setup ? <Connect connection={c} onReady={focus} /> : <Thread editor={editor} ideas={examples} onAsk={ask} />}
             </div>
           </div>
         </div>

@@ -11,8 +11,8 @@ export type Job = {
   progress: (step: Step) => void;
   // A draft to show on the canvas; `final` drafts are complete scenes.
   draft: (scene: Scene, final: boolean) => void;
-  // Claude Code: a task beside building (tidy the layers, review the scene).
-  task?: 'tidy' | 'review';
+  // Claude Code: a task beside building — tidy the layers.
+  task?: 'tidy';
   // Claude Code: the conversation to continue, and where to report its id.
   session?: string;
   onSession?: (id: string) => void;

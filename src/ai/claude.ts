@@ -8,7 +8,7 @@ import { onDisk, useConnection, type EngineId } from './connection';
 import { explain, type Problem } from './errors';
 import type { Job, Step } from './job';
 import { agentRuns, runWithClaudeCode, stopClaudeCode, watchClaudeCode } from './local';
-import { readReview, splitReply, type Remark } from './reply';
+import { splitReply } from './reply';
 import { useTalks } from './talks';
 
 // What the editor lends a run: its files, selection and history.
@@ -38,8 +38,7 @@ export type Run = { file: string; engine: EngineId; abort: AbortController };
 export type JobState = {
   file: string; prompt: string; steps: Step[]; running: boolean; at: number;
   result?: string; next?: string[]; error?: Problem; changed?: boolean;
-  // A review's remarks, each with its fix.
-  remarks?: Remark[]; task?: 'tidy' | 'review';
+  task?: 'tidy';
 };
 
 const STOPPED = 'Остановлено';
@@ -54,7 +53,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
   // Building from scratch: the old scene fades until the first draft lands.
   const [rebuilding, setRebuilding] = useState(false);
 
-  const start = async (prompt: string, { fresh = false, watch = false, at = Date.now(), task }: { fresh?: boolean; watch?: boolean; at?: number; task?: 'tidy' | 'review' } = {}) => {
+  const start = async (prompt: string, { fresh = false, watch = false, at = Date.now(), task }: { fresh?: boolean; watch?: boolean; at?: number; task?: 'tidy' } = {}) => {
     if (run.current) return;
     const engine: EngineId = watch ? 'local' : connection.engine;
     const file = ws.current() ?? ws.create();
@@ -84,20 +83,15 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
       prompt, file, selection, signal: abort.signal, progress, draft,
       // From scratch Claude starts from nothing.
       scene: fresh ? { ...scene, objects: [] } : scene,
-      // Tidying and reviewing are side trips: they don't carry the conversation on.
+      // Tidying is a side trip: it doesn't carry the conversation on.
       ...(task ? { task } : { session: talk.session, onSession: (id: string) => talks.setSession(file, talk.id, id) }),
     };
-    let outcome: { result?: string; next?: string[]; error?: Problem; remarks?: Remark[] };
+    let outcome: { result?: string; next?: string[]; error?: Problem };
     try {
       const result = watch ? await watchClaudeCode(job) : onDisk(engine) ? await runWithClaudeCode(job) : await runWithApi(job, connection.key);
-      if (task === 'review') {
-        const review = readReview(result);
-        outcome = { result: review.good ?? 'Что ещё можно улучшить:', remarks: review.remarks };
-      } else {
-        // The reply's last line may carry the next steps.
-        const reply = splitReply(result);
-        outcome = { result: reply.text, next: task ? [] : reply.next };
-      }
+      // The reply's last line may carry the next steps.
+      const reply = splitReply(result);
+      outcome = { result: reply.text, next: task ? [] : reply.next };
     } catch (error) {
       const message = (error as Error).message;
       outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message) };
@@ -152,7 +146,6 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     // Only Claude Code does these; they read and write the file on disk.
     canTidy: connection.engine === 'local',
     tidy: () => start('Причесать слои', { task: 'tidy' }),
-    review: () => start('Оценить сцену', { task: 'review' }),
     stop,
     dismiss: () => setJob(null),
     newConversation: () => leave(() => talks.fresh(ws.file!)),
