@@ -233,14 +233,19 @@ export type RunEvent =
 // `model`, `effort` and `sketch: false` are for experiments (npm run eval); the editor uses the defaults.
 export type Brief = { file: string; prompt: string; selection?: string[]; fresh?: boolean; session?: string | null; model?: string; effort?: 'low' | 'medium' | 'high'; sketch?: boolean; task?: Task };
 
-// The second pass of a new scene, in the same session at low effort: one
-// look at the preview, the obvious fixed, done. Long deliberation over the
-// picture was where the minutes went in live runs.
+// The second pass of a new scene, in the same session: a strict look as the
+// series' art director, and the fixes, before the person sees the result.
+// A separate review found what the first result missed (a door that barely
+// moves, fiddly bits, a silhouette like the safe) — so it happens here.
 function reviewFor(file: string) {
   return [
-    `Теперь посмотри на результат: npm run render ${file} и previews/${file}.png (три кадра: покой, середина наведения, наведение).`,
-    'Сверь с тем, что делает сцену хорошей (выше). Исправь только явное — то, что сразу бросается в глаза: не читается образ, мелкая или спрятанная подвижная часть, разваливается движение, висит или торчит деталь. Одной записью файла, затем check. Если всё хорошо — ничего не меняй.',
-    'Не перебирай варианты и не шлифуй мелочи.',
+    `Теперь посмотри на результат глазами арт-директора серии: npm run check ${file}, npm run render ${file}, previews/${file}.png (покой, середина наведения, наведение) и рядом previews/templates/storage.png.`,
+    'Найди до трёх самых заметных проблем. Проверь по очереди:',
+    '1. Все предупреждения check (!) — исправь каждое: мелкие детали убери или сделай крупнее, едва заметное движение сделай ходом 30–60, разваливающиеся группы собери.',
+    '2. Образ читается за секунду, с этого ракурса; силуэт не похож на сцены серии (сейф, пресс, стойки серверов).',
+    '3. Подвижная часть крупная и её ход виден на карточке: движется в сторону зрителя (+X, +Y) или вверх, не прячется за корпусом.',
+    '4. Ничего не висит, не торчит, соединения видны.',
+    'Исправь найденное одной записью файла целиком, затем check и render ещё раз и убедись глазами. Если проблем нет — ничего не меняй.',
     FINISH,
   ].join('\n');
 }
@@ -272,13 +277,15 @@ function taskFor(task: 'tidy' | 'review', file: string) {
 
 // A quick sketch of the form, by a fast model, so the canvas isn't empty
 // while the main pass thinks over the idea.
-function sketchFor(file: string, prompt: string) {
+function sketchFor(path: string, prompt: string) {
   return [
     `Задача: ${prompt}`,
-    `Одним вызовом Write сразу запиши ${work}/files/${file}.json — набросок основной формы, 4–8 блоков: ${LAYOUT}. Формат и правила серии — в AGENTS.md: земля z = 14, сетка 10, сцена в пределах ±150 по X и Y, блоки не пересекаются. Поле hover не нужно.`,
+    `Одним вызовом Write сразу запиши ${path} — набросок основной формы, 5–10 блоков: ${LAYOUT}. Формат и правила серии — в AGENTS.md: земля z = 14, сетка 10, сцена в пределах ±150 по X и Y, блоки не пересекаются; title — два-три слова о главном образе.`,
+    'Поле hover не нужно.',
     'Ничего не читай, ничего не проверяй и не объясняй. После записи ответь одним словом: готово.',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
+
 
 type Pass = { ask: string; model?: string; effort: string; tools: string[]; session: string | null; firstWrite: string; env?: Record<string, string> };
 // One `claude -p` over the file: its stream turned into the editor's events.
@@ -378,7 +385,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
     if (fresh && brief.sketch !== false && !contentNow()) {
       // The sketch shows its blocks and steps; its end, session and errors are its own.
       // Thinking capped: measured, the sketch then lands in about ten seconds.
-      const s = pass(cli, { ask: sketchFor(file, prompt), model: 'haiku', effort: 'low', tools: ['Write'], session: null, firstWrite: 'Набрасывает форму', env: { MAX_THINKING_TOKENS: '1024' } }, file,
+      const s = pass(cli, { ask: sketchFor(`${work}/files/${file}.json`, prompt), model: 'haiku', effort: 'low', tools: ['Write'], session: null, firstWrite: 'Набрасывает форму', env: { MAX_THINKING_TOKENS: '1024' } }, file,
         e => { if (e.kind === 'scene' || e.kind === 'tool') emit(e); });
       current = s.child;
       await s.exited;
@@ -403,7 +410,7 @@ export function launch(brief: Brief, emit: (event: RunEvent) => void) {
     await main.exited;
     // A new scene gets one quick look at its preview, in the same conversation.
     if (fresh && !stopped && mainSession && contentNow()) {
-      const review = pass(cli, { ask: reviewFor(file), model: brief.model, effort: 'low', tools: TOOLS, session: mainSession, firstWrite: 'Правит по превью' }, file,
+      const review = pass(cli, { ask: reviewFor(file), model: brief.model, effort: 'medium', tools: TOOLS, session: mainSession, firstWrite: 'Исправляет найденное' }, file,
         e => { if (e.kind !== 'error') emit(e); else emit({ kind: 'done', text: lastSaid }); });
       current = review.child;
       await review.exited;

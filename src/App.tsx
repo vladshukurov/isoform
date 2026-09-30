@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleAlert, WandSparkles, FileUp, Redo2, Undo2, X } from 'lucide-react';
+import { CircleAlert, Ellipsis, FileUp, Redo2, Undo2, X } from 'lucide-react';
 import { parse as parseBlocks, serialize } from './clipboard';
 import { readSceneFile } from './download';
 import { useEditor } from './editor';
@@ -8,6 +8,7 @@ import { ConfirmDialog, Gallery, ShortcutsDialog } from './ui/Dialogs';
 import { Dock } from './ui/Dock';
 import { FileHeader, TopActions } from './ui/FileHeader';
 import { LayersPanel } from './ui/LayersPanel';
+import { Menu } from './ui/Menu';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { IconButton, Spinner } from './ui/kit';
 import { Tooltip } from './ui/Tooltip';
@@ -24,6 +25,7 @@ export function App() {
   const [dark, setDark] = useState(readTheme);
   const [chrome, setChrome] = useState(true);
   const [dropping, setDropping] = useState(false);
+  const [layersMenu, setLayersMenu] = useState<{ x: number; y: number } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const pendingPaste = useRef(0);
   const { scene, selection } = editor;
@@ -147,13 +149,12 @@ export function App() {
         <FileHeader editor={editor} dark={dark} onDark={() => setDark(d => !d)}
           onWelcome={() => setDialog('welcome')} onFiles={() => setDialog('files')}
           onShortcuts={() => setDialog('shortcuts')} onImport={() => picker.current?.click()} onDelete={() => setDialog('delete')} />
-        <TopActions editor={editor} dark={dark} onDark={() => setDark(d => !d)} />
+        <TopActions editor={editor} dark={dark} />
 
         {scene && <aside className="panel left surface">
           <div className="panel-title">
             <h3>Слои</h3>
-            {editor.claude.canTidy && <IconButton tip label="Причесать слои: имена, группы, название" disabled={editor.claude.running || !scene.objects.length || !editor.claude.connection.ready}
-              onClick={() => { editor.claude.setOpen(true); editor.claude.tidy(); }}><WandSparkles size={14} /></IconButton>}
+            <IconButton label="Меню слоёв" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setLayersMenu({ x: r.left, y: r.bottom + 6 }); }}><Ellipsis size={14} /></IconButton>
           </div>
           <LayersPanel editor={editor} />
         </aside>}
@@ -189,6 +190,12 @@ export function App() {
       {dialog === 'delete' && <ConfirmDialog title={`Удалить ${editor.current}?`} action="Удалить"
         text={editor.browserOnly ? 'Файл удалится из этого браузера. Отменить это нельзя.' : `Файл files/${editor.current}.json удалится с диска. Отменить это нельзя.`}
         onConfirm={editor.deleteFile} onClose={() => setDialog(null)} />}
+      {layersMenu && scene && <Menu {...layersMenu} onClose={() => setLayersMenu(null)} items={[
+        ...(editor.claude.canTidy ? [{ label: 'Названия и группы по смыслу', disabled: editor.claude.running || !scene.objects.length || !editor.claude.connection.ready,
+          onSelect: () => { editor.claude.setOpen(true); editor.claude.tidy(); } }, 'separator' as const] : []),
+        { label: 'Сгруппировать', shortcut: '⌘G', disabled: selection.length < 2, onSelect: () => editor.group() },
+        { label: 'Разгруппировать', shortcut: '⇧⌘G', disabled: !editor.selected.some(p => p.group), onSelect: () => editor.ungroup() },
+      ]} />}
       <Tooltip />
     </div>
   );

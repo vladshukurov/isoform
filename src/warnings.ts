@@ -1,8 +1,11 @@
 // What looks off but may be intended: printed by npm run check with "!",
 // never fails it. The eight templates pass clean, keep it that way.
-import { GAP, GROUND, hoverBox, type Box, type Scene } from './model';
+import { BOX_KEYS, GAP, GROUND, hoverBox, type Box, type Scene } from './model';
 
 const LIMIT = 250, MAX_DELAY = .6, MAX_BLOCKS = 24;
+// Measured on the series: no template has a block thinner than 10 in two
+// directions, and every template's largest move is 22 or more.
+const TINY = 10, VISIBLE_MOVE = 20;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // Positive-length overlap of two spans, or exact contact when `touch`.
@@ -37,5 +40,24 @@ export function warnings(scene: Scene) {
   if (x > LIMIT) out.push(`сцена широкая: по X до ±${Math.round(x)}, серия укладывается в ±200`);
   if (y > LIMIT) out.push(`сцена глубокая: по Y до ±${Math.round(y)}, серия укладывается в ±200`);
   if (blocks.length > MAX_BLOCKS) out.push(`блоков ${blocks.length} — больше ${MAX_BLOCKS}, образ теряет простоту`);
+  // What made first results weak in live runs: fiddly bits, a motion you
+  // can't see on the card, a moving part that comes apart halfway.
+  for (const p of blocks) if ([p.w, p.d, p.h].sort((a, b) => a - b)[1] < TINY)
+    out.push(`${p.id}: мелкая деталь (тоньше ${TINY} в двух направлениях) — на карточке это соринка; убери или сделай крупнее`);
+  const travel = (p: typeof blocks[number]) => Math.max(...BOX_KEYS.map(k => Math.abs(hoverBox(p)[k] - p[k])));
+  const moving = blocks.filter(p => travel(p) > 0);
+  if (!moving.length) out.push('при наведении ничего не движется');
+  else if (Math.max(...moving.map(travel)) < VISIBLE_MOVE) out.push(`движение едва заметно: самый большой ход ${Math.max(...moving.map(travel))} — в серии от 22; сделай ход 30–60`);
+  const groups = new Map<string, typeof blocks>();
+  for (const p of blocks) if (p.group) groups.set(p.group, [...groups.get(p.group) ?? [], p]);
+  for (const [name, parts] of groups) {
+    const shift = (p: typeof blocks[number]) => (['x', 'y', 'z'] as const).map(k => hoverBox(p)[k] - p[k]).join();
+    const moves = parts.filter(p => travel(p) > 0);
+    if (moves.length && moves.length < parts.length && moves.some(p => ['w', 'd', 'h'].every(k => hoverBox(p)[k as 'w'] === p[k as 'w'])))
+      out.push(`группа ${name} разваливается: одни её блоки едут, другие стоят`);
+    else if (new Set(moves.filter(p => ['w', 'd', 'h'].every(k => hoverBox(p)[k as 'w'] === p[k as 'w'])).map(shift)).size > 1)
+      out.push(`группа ${name} разваливается: блоки едут по-разному`);
+    else if (new Set(moves.map(p => p.delay ?? 0)).size > 1) out.push(`группа ${name} разваливается: у блоков разные задержки`);
+  }
   return out;
 }

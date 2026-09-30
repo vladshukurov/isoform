@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, CloudAlert, Download, Moon, Sun } from 'lucide-react';
+import { ChevronDown, CloudAlert, Download } from 'lucide-react';
 import { downloadJson, downloadPng, downloadSvg } from '../download';
 import type { Editor } from '../editor';
 import { Mark } from './Glyph';
-import { Button, Chip, Dot, IconButton } from './kit';
+import { Button, Chip, Dot } from './kit';
 import { Menu, type MenuItem } from './Menu';
 
 type Props = {
@@ -62,15 +62,12 @@ export function FileHeader({ editor, dark, onDark, onWelcome, onFiles, onShortcu
   </>);
 }
 
-// Top right: the theme and download.
-export function TopActions({ editor, dark, onDark }: { editor: Editor; dark: boolean; onDark: () => void }) {
+// Top right: download. The theme lives in the file menu.
+export function TopActions({ editor, dark }: { editor: Editor; dark: boolean }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const { current, scene } = editor;
   return (
     <div className="top-actions">
-      <IconButton size="lg" variant="glass" label={dark ? 'Светлая тема' : 'Тёмная тема'} onClick={onDark}>
-        {dark ? <Sun size={16} /> : <Moon size={16} />}
-      </IconButton>
       <Button variant="primary" size="lg" icon={<Download size={16} />} disabled={!scene || !current}
         onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.right - 220, y: r.bottom + 6 }); }}>Скачать</Button>
       {menu && scene && current && <Menu {...menu} onClose={() => setMenu(null)} items={[

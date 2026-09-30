@@ -393,3 +393,7 @@ button.tile:disabled .tile-art { opacity: .45; }
 .remark { display: flex; align-items: center; gap: var(--s-4); width: 100%; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--r-3); background: var(--field); animation: rise var(--mid) var(--ease) both; }
 .remark span { flex: 1; min-width: 0; }
 .remarks > .btn { margin-top: 2px; }
+
+/* Things Claude can do with the scene as it is: outlined, before the ideas */
+.ideas .btn.is-action { background: none; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ideas .btn.is-action:hover:not(:disabled) { background: var(--field); }

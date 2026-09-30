@@ -35,7 +35,8 @@ function Typed({ text, still, onDone }: { text: string; still?: boolean; onDone?
 }
 
 // The conversation in the dock, wired to the editor.
-export function Thread({ editor, ideas, onAsk }: { editor: Editor; ideas: string[]; onAsk: (text: string) => void }) {
+// `actions`: things Claude can do with the scene as it is (review, tidy), offered beside the ideas.
+export function Thread({ editor, ideas, onAsk, actions = [] }: { editor: Editor; ideas: string[]; onAsk: (text: string) => void; actions?: { label: string; run: () => void }[] }) {
   const { claude } = editor, { connection: c } = claude;
   const fix = (f: Fix) => {
     if (f === 'api') c.choose('api');
@@ -43,15 +44,15 @@ export function Thread({ editor, ideas, onAsk }: { editor: Editor; ideas: string
     if (f === 'login') c.switchAccount();
     if (f === 'install') c.refresh();
   };
-  return <ThreadView thread={claude.thread} job={claude.job} checking={!c.ready && !c.need} ideas={ideas}
+  return <ThreadView thread={claude.thread} job={claude.job} checking={!c.ready && !c.need} ideas={ideas} actions={actions}
     onAsk={onAsk} onRetry={prompt => claude.generate(prompt)} onFix={fix} onUndo={() => { editor.undo(); claude.dismiss(); }} />;
 }
 
 // What the conversation shows: ideas while it's empty, past turns, then the
 // run going now with its latest step and a timer, or how it ended and what
 // to do next. Pure, so /design.html can show every state.
-export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix, onUndo, now: fixedNow }: {
-  thread: Turn[]; job: JobState | null; checking?: boolean; ideas: string[];
+export function ThreadView({ thread, job, checking, ideas, actions = [], onAsk, onRetry, onFix, onUndo, now: fixedNow }: {
+  thread: Turn[]; job: JobState | null; checking?: boolean; ideas: string[]; actions?: { label: string; run: () => void }[];
   onAsk: (text: string) => void; onRetry: (prompt: string) => void; onFix: (fix: Fix) => void; onUndo: () => void; now?: number;
 }) {
   const log = useRef<HTMLDivElement>(null);
@@ -86,7 +87,10 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
     <div className="thread" ref={log} aria-live="polite">
       {!thread.length && !job && (checking
         ? <div className="thread-checking"><Spinner size={13} />Проверяем Claude Code на этом компьютере</div>
-        : <div className="ideas">{ideas.slice(0, 3).map(x => <Button key={x} onMouseDown={e => e.preventDefault()} onClick={() => onAsk(x)}>{x}</Button>)}</div>)}
+        : <div className="ideas">
+            {actions.map(a => <Button key={a.label} className="is-action" onMouseDown={e => e.preventDefault()} onClick={a.run}>{a.label}</Button>)}
+            {ideas.slice(0, actions.length ? 2 : 3).map(x => <Button key={x} onMouseDown={e => e.preventDefault()} onClick={() => onAsk(x)}>{x}</Button>)}
+          </div>)}
       {thread.slice(0, last ? -1 : undefined).slice(-6).map((t, i) => (
         <div key={i} className="turn">
           <p className="turn-you">{t.prompt}</p>

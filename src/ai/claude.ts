@@ -92,7 +92,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
       const result = watch ? await watchClaudeCode(job) : onDisk(engine) ? await runWithClaudeCode(job) : await runWithApi(job, connection.key);
       if (task === 'review') {
         const review = readReview(result);
-        outcome = { result: review.good ?? 'Вот что стоит поправить:', remarks: review.remarks };
+        outcome = { result: review.good ?? 'Что ещё можно улучшить:', remarks: review.remarks };
       } else {
         // The reply's last line may carry the next steps.
         const reply = splitReply(result);
