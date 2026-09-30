@@ -8,6 +8,7 @@ import { onDisk, useConnection, type EngineId } from './connection';
 import { explain, type Problem } from './errors';
 import type { Job, Step } from './job';
 import { agentRuns, runWithClaudeCode, stopClaudeCode, watchClaudeCode } from './local';
+import { splitReply } from './reply';
 import { useTalks } from './talks';
 
 // What the editor lends a run: its files, selection and history.
@@ -36,7 +37,7 @@ export type Workspace = {
 export type Run = { file: string; engine: EngineId; abort: AbortController };
 export type JobState = {
   file: string; prompt: string; steps: Step[]; running: boolean; at: number;
-  result?: string; error?: Problem; changed?: boolean;
+  result?: string; next?: string[]; error?: Problem; changed?: boolean;
 };
 
 const STOPPED = 'Остановлено';
@@ -83,10 +84,12 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
       scene: fresh ? { ...scene, objects: [] } : scene,
       session: talk.session, onSession: id => talks.setSession(file, talk.id, id),
     };
-    let outcome: { result?: string; error?: Problem };
+    let outcome: { result?: string; next?: string[]; error?: Problem };
     try {
       const result = watch ? await watchClaudeCode(job) : onDisk(engine) ? await runWithClaudeCode(job) : await runWithApi(job, connection.key);
-      outcome = { result };
+      // The reply's last line may carry the next steps.
+      const reply = splitReply(result);
+      outcome = { result: reply.text, next: reply.next };
     } catch (error) {
       const message = (error as Error).message;
       outcome = abort.signal.aborted ? { result: STOPPED } : { error: explain(message) };
@@ -104,7 +107,7 @@ export function useClaude(ws: Workspace, run: RefObject<Run | null>) {
     }
     const changed = ws.settle(file, scene);
     setJob(j => j && { ...j, running: false, changed, ...outcome });
-    talks.record(file, talk.id, { prompt, ...outcome }, changed);
+    talks.record(file, talk.id, { prompt, result: outcome.result, error: outcome.error }, changed);
   };
 
   const stop = () => {

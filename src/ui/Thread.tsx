@@ -14,6 +14,26 @@ const FIXES: Record<Exclude<Fix, 'retry'>, { label: string; Icon: typeof KeyRoun
   install: { label: 'Установить', Icon: TerminalSquare },
 };
 
+// Claude's answer types itself out, quick and even: about 30 ms a letter,
+// never more than a second and a half in all.
+function Typed({ text, still, onDone }: { text: string; still?: boolean; onDone?: () => void }) {
+  const [n, setN] = useState(still ? text.length : 0);
+  useEffect(() => {
+    if (still || matchMedia('(prefers-reduced-motion: reduce)').matches) { setN(text.length); onDone?.(); return; }
+    const step = Math.min(30, 1500 / Math.max(1, text.length));
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const shown = Math.min(text.length, Math.floor((now - start) / step));
+      setN(shown);
+      if (shown < text.length) frame = requestAnimationFrame(tick); else onDone?.();
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [text]);
+  return <>{text.slice(0, n)}{n < text.length && <i className="type-caret" aria-hidden />}<span className="visually-hidden">{text.slice(n)}</span></>;
+}
+
 // The conversation in the dock, wired to the editor.
 export function Thread({ editor, ideas, onAsk }: { editor: Editor; ideas: string[]; onAsk: (text: string) => void }) {
   const { claude } = editor, { connection: c } = claude;
@@ -44,6 +64,8 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
     return () => clearInterval(t);
   }, [job?.running, fixedNow]);
   const now = fixedNow ?? tick;
+  // The next steps come once the answer has typed itself out.
+  const [typed, setTyped] = useState<number | null>(null);
 
   // The one way out of each problem; a retry is always there too.
   const failed = (error: Problem, prompt: string) => {
@@ -85,8 +107,12 @@ export function ThreadView({ thread, job, checking, ideas, onAsk, onRetry, onFix
               </div>
             : job.error
               ? failed(job.error, job.prompt)
-              : <div className="turn-end"><p className={`turn-claude${job.result === STOPPED ? ' is-muted' : ''}`}>{job.result}</p>
-                  {job.changed && <Button size="sm" onClick={onUndo} icon={<Undo2 size={12} />}>Отменить</Button>}</div>}
+              : <>
+                  <div className="turn-end"><p className={`turn-claude${job.result === STOPPED ? ' is-muted' : ''}`}><Typed key={job.at} text={job.result ?? ''} still={!!fixedNow} onDone={() => setTyped(job.at)} /></p>
+                    {job.changed && <Button size="sm" onClick={onUndo} icon={<Undo2 size={12} />}>Отменить</Button>}</div>
+                  {!!job.next?.length && typed === job.at && <div className="turn-next">{job.next.map((n, i) =>
+                    <Button key={n} size="sm" style={{ animationDelay: `${i * .06}s` }} onMouseDown={e => e.preventDefault()} onClick={() => onAsk(n)}>{n}</Button>)}</div>}
+                </>}
         </div>
       )}
     </div>

@@ -384,3 +384,8 @@ button.tile:disabled .tile-art { opacity: .45; }
   .panel.right { top: auto; bottom: 164px; }
 }
 .turn-hint { color: var(--muted); font-size: var(--t-sm); line-height: 17px; animation: fade var(--mid) var(--ease); }
+/* The answer typing out, and the next steps under it */
+.type-caret { display: inline-block; width: 1.5px; height: 1.05em; margin-left: 1px; vertical-align: -2px; background: var(--ink); animation: breathe .8s steps(2) infinite; }
+.turn-next { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.turn-next .btn { font-weight: 400; animation: rise var(--mid) var(--ease) both; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

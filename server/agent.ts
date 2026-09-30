@@ -84,7 +84,7 @@ const GUARD = 'Ты помогаешь только с этой иллюстра
 const LAYOUT = 'в формате редактора: каждый блок — одна строка вида {"id":"…","x":…}, в порядке отрисовки от дальних к ближним';
 const FORMAT = `Сохраняй сцену инструментом Write целиком (не Edit), ${LAYOUT} — блоки появляются на холсте по мере того, как ты их пишешь.`;
 const FOCUS = 'Работай только с файлом сцены и превью: не читай исходники (src/, scripts/, server/, recipes/), не пиши рецепты и скрипты, не обрабатывай картинки — смотри превью как есть. Всё, что нужно знать о формате, — в AGENTS.md.';
-const FINISH = 'Последнее сообщение — для дизайнера: одна короткая фраза по-русски о том, что получилось на картинке, без имён файлов, id, чисел, кода и отчёта о проверках. Не спрашивай уточнений — реши сам.';
+const FINISH = 'Последнее сообщение — для дизайнера: одна короткая фраза по-русски о том, что получилось на картинке, без имён файлов, id, чисел, кода и отчёта о проверках. Второй строкой — «Дальше:» и 2–3 короткие правки именно этой сцены, которые стоит попробовать, через « | », каждая до 5 слов, повелительно (например: Дальше: Крышку выше | Ящики волной | Упростить цоколь). Не спрашивай уточнений — реши сам.';
 const LOOK = ['storage', 'production'], SAMPLES = ['storage', 'cicd'];
 
 // Previews of the series for Claude to look at; previews/ isn't in git, so
@@ -315,7 +315,7 @@ function pass(cli: Cli, p: Pass, file: string, emit: (event: RunEvent) => void) 
           if (sessionId) emit({ kind: 'session', text: sessionId });
           emit(event.is_error
             ? { kind: 'error', text: String(event.result ?? 'Ошибка агента') }
-            : { kind: 'done', text: String(event.result ?? '').trim().split('\n').slice(-2).join(' '), cost: event.total_cost_usd, turns: event.num_turns, ms: event.duration_ms });
+            : { kind: 'done', text: String(event.result ?? '').trim().split('\n').filter(l => l.trim()).slice(-3).join('\n'), cost: event.total_cost_usd, turns: event.num_turns, ms: event.duration_ms });
         }
       } catch { /* a partial or non-JSON line */ }
     }

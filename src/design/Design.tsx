@@ -373,6 +373,7 @@ function Patterns() {
         <Cell name="работает" wide>{thread({ job: running('Ставит каркас', 14), now: 14000 })}</Cell>
         <Cell name="долгий старт — объясняем" wide>{thread({ job: { ...running('Думает', 0), steps: [{ kind: 'think', text: 'Думает' }] }, now: 48000 })}</Cell>
         <Cell name="готово" wide>{thread({ job: ended({ result: 'Крышка приподнимается над корпусом при наведении.', changed: true }) })}</Cell>
+        <Cell name="готово — печатается, с подсказками" wide>{thread({ job: ended({ result: 'Почтовый ящик на столбе: при наведении флажок поднимается, дверца приоткрывается.', changed: true, next: ['Флажок крупнее', 'Дверцу шире', 'Столб ниже'], at: Date.now() }) })}</Cell>
         <Cell name="остановлено" wide>{thread({ job: ended({ result: 'Остановлено' }) })}</Cell>
         <Cell name="лимит подписки" wide>{thread({ job: ended({ error: { text: 'Лимит подписки Claude закончился — обновится в 2:40', fix: 'api' } }) })}</Cell>
         <Cell name="ключ не подходит" wide>{thread({ job: ended({ error: { text: 'Ключ API не подходит', fix: 'key' } }) })}</Cell>
